@@ -1,0 +1,24 @@
+{
+  "expo": {
+    "name": "ETU Field Visit",
+    "slug": "etu-field-visit",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "backgroundColor": "#F4F2EA",
+    "android": {
+      "package": "com.azrizainal.etufieldvisit",
+      "versionCode": 1,
+      "permissions": ["android.permission.CAMERA"]
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow ETU Field Visit to attach photos to field findings.",
+          "cameraPermission": "Allow ETU Field Visit to take photos of field findings."
+        }
+      ]
+    ]
+  }
+}
