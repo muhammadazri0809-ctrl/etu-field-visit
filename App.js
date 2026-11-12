@@ -1,4 +1,4 @@
-// ETU FIELD VISIT v7 (region/SOU lookup, fields, upload, photos, settings)
+// ETU FIELD VISIT v7.1 (region/SOU lookup, fields, upload, photos, settings)
 // Site visits + 10 activity triggers + follow-up actions
 // + 12 cost elements + estate profit
 import React, { useState, useEffect } from 'react';
@@ -19,6 +19,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
+import { File } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 import * as XLSX from 'xlsx';
 import Svg, {
@@ -713,7 +714,7 @@ function cleanNum(v) {
 function readRows(rows) {
   let hi = -1;
   let m = null;
-  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
     const t = matchColumns(rows[i]);
     if (t.map.estate !== undefined && t.map.code !== undefined) {
       hi = i;
@@ -722,7 +723,15 @@ function readRows(rows) {
     }
   }
   if (hi < 0) {
-    return { error: 'Could not find the header row. It needs at least an "Estate" and a "Field" column.' };
+    // Show what the app did see, to help fix the file
+    const firstRow = rows.find((r) => (r || []).some((c) => String(c || '').trim())) || [];
+    const seen = firstRow.map((c) => String(c || '').trim()).filter((c) => c).slice(0, 8);
+    return {
+      error:
+        'Could not find the header row. It needs at least an "Estate" and a "Field" column.' +
+        (seen.length ? '\nFirst row seen: ' + seen.join(' | ') : '\nNo data was found.'),
+      seen: seen,
+    };
   }
   const get = (r, i) => (i === undefined ? '' : String(r[i] === undefined ? '' : r[i]).trim());
   const out = [];
@@ -2272,6 +2281,9 @@ function UploadScreen({ estates, fields, onImport, onDone }) {
       const r = readRows(rows);
       if (!best || !r.error) best = { ...r, sheet: n };
     });
+    if (best && best.error) {
+      best.error += '\nSheets in file: ' + wb.SheetNames.join(', ');
+    }
     return best || { error: 'The file has no sheets.' };
   };
 
@@ -2292,8 +2304,9 @@ function UploadScreen({ estates, fields, onImport, onDone }) {
         const buf = await asset.file.arrayBuffer();
         wb = XLSX.read(buf, { type: 'array' });
       } else {
-        // phone: read the file as base64 (no extra library)
+        // phone: read the file as base64
         const b64 = await readAsBase64(asset.uri);
+        if (!b64) throw new Error('the file looks empty (0 bytes). Save it again and retry.');
         wb = XLSX.read(b64, { type: 'base64' });
       }
       setResult(readWorkbook(wb));
@@ -2306,6 +2319,10 @@ function UploadScreen({ estates, fields, onImport, onDone }) {
   const readPaste = () => {
     setDone(null);
     setFileName('Pasted data');
+    if (!paste.trim()) {
+      setResult({ error: 'The paste box is empty. To upload a file, use PICK EXCEL / CSV FILE above.' });
+      return;
+    }
     setResult(readRows(textToRows(paste)));
   };
 
@@ -2452,6 +2469,14 @@ function UploadScreen({ estates, fields, onImport, onDone }) {
 
 // Read a picked file on the phone as base64 text
 async function readAsBase64(uri) {
+  // 1st try: Expo file system (most reliable on Android)
+  try {
+    const b64 = await new File(uri).base64();
+    if (b64) return b64;
+  } catch (e) {
+    // fall back below
+  }
+  // 2nd try: fetch + FileReader
   const res = await fetch(uri);
   const blob = await res.blob();
   return new Promise((resolve, reject) => {
