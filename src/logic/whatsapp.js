@@ -507,3 +507,24 @@ export function bytesHash(u) {
   }
   return (h1 >>> 0).toString(36) + (h2 >>> 0).toString(36) + u.length.toString(36);
 }
+
+// Visits imported by an older version kept WhatsApp's "You deleted this message" lines
+// as observations. Returns the visits without them (same array when nothing changes).
+export function dropDeletedMessageObs(visits) {
+  let changed = false;
+  const out = visits.map((v) => {
+    let vc = false;
+    const fieldsOut = (v.fields || []).map((f) => {
+      const obs = (f.obs || []).filter((o) => !SKIP_MSG.test(String(o.issue || o.title || '').trim()));
+      if (obs.length !== (f.obs || []).length) {
+        vc = true;
+        return { ...f, obs };
+      }
+      return f;
+    });
+    if (!vc) return v;
+    changed = true;
+    return { ...v, fields: fieldsOut };
+  });
+  return changed ? out : visits;
+}

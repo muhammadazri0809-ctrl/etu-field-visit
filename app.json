@@ -3,13 +3,13 @@
     "name": "ETU Field Visit",
     "slug": "etu-field-visit",
     "owner": "azrizainals-team",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "backgroundColor": "#F4F2EA",
     "android": {
       "package": "com.azrizainal.etufieldvisit",
-      "versionCode": 2,
+      "versionCode": 3,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2C5534"

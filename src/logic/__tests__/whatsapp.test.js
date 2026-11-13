@@ -1,4 +1,4 @@
-import { buildImport, extractFiles, findFields, groupsToVisits, guessCategory, parseChat, splitLabels } from '../whatsapp';
+import { buildImport, dropDeletedMessageObs, extractFiles, findFields, groupsToVisits, guessCategory, parseChat, splitLabels } from '../whatsapp';
 
 const estates = [
   { id: 'bb', name: 'Bukit Badak' },
@@ -152,4 +152,16 @@ test('groupsToVisits: creates visits, new estates and links photos', () => {
   expect(out.visits[1].estateId).toBe(out.newEstates[0].id);
   expect(out.attached).toBe(1);
   expect(out.missing).toBe(0);
+});
+
+test('dropDeletedMessageObs removes old "You deleted this message" observations', () => {
+  const keep = { id: 'o1', title: 'Ganoderma Fallen Palm', issue: 'Ganoderma Fallen Palm' };
+  const visits = [
+    { id: 'v1', fields: [{ code: '2010B', obs: [keep, { id: 'o2', title: 'You deleted this message', issue: 'You deleted this message' }] }] },
+    { id: 'v2', fields: [{ code: '2011A', obs: [keep] }] },
+  ];
+  const out = dropDeletedMessageObs(visits);
+  expect(out[0].fields[0].obs).toEqual([keep]);
+  expect(out[1]).toBe(visits[1]);
+  expect(dropDeletedMessageObs(out)).toBe(out); // nothing left to change
 });
