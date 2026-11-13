@@ -4,11 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { DateField } from '../components/DateField';
 import { PhotoStrip } from '../components/PhotoStrip';
 import { CatIcon, StatusChip } from '../components/etu';
-import { CTA, Chip, DateBox, DeleteBox, Empty, Field, FilterChips, Hero, PageHead, Section, TONE_FG } from '../components/ui';
-import { showDate } from '../logic/dates';
+import { CTA, Chip, DateBox, DeleteBox, Empty, Field, FilterChips, Hero, PageHead, Section, TONE_BG, TONE_FG } from '../components/ui';
+import { addDays, showDate, today } from '../logic/dates';
 import { ACTION_BY, ECATS, ESTAT, ESTAT_ORDER, UOMS, WORD_LIB, etuCounts } from '../logic/etu';
 import { norm } from '../logic/importRows';
 import { C, T, styles } from '../theme';
+import { SwipeRow } from '../components/SwipeRow';
+import { fieldPriorities } from './AlertsScreen';
 
 // ---------- 1. visit list ----------
 export function EtuListScreen(p) {
@@ -19,7 +21,7 @@ export function EtuListScreen(p) {
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const nFields = list.reduce((n, v) => n + (v.fields || []).length, 0);
   const nAtt = list.reduce((n, v) => n + etuCounts(v).attention, 0);
-  const visited = [...new Set(etu.map((v) => v.estateId))];
+  const visited = [...new Set(etu.map((v) => v.estateId).filter(Boolean))];
   const ename = (id) => (estates.find((e) => e.id === id) || {}).name || 'Estate';
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -34,6 +36,7 @@ export function EtuListScreen(p) {
         ]}
       />
       <CTA label="NEW FIELD VISIT" icon="add" onPress={() => p.onNew(est !== 'all' ? est : estates.length === 1 ? estates[0].id : null)} />
+      <CTA label="IMPORT WHATSAPP CHAT" icon="logo-whatsapp" secondary onPress={p.onImportWa} />
       {visited.length > 1 && (
         <FilterChips
           value={est}
@@ -43,6 +46,7 @@ export function EtuListScreen(p) {
           )}
         />
       )}
+      {list.length > 0 && <T style={[styles.hint, { textAlign: 'center' }]}>Swipe a visit left or right to delete it.</T>}
       {list.length === 0 && (
         <Empty title="No visits yet" text="Tap NEW FIELD VISIT at the estate. Add each field you assess, record observations with photos, then share the report." />
       )}
@@ -50,10 +54,11 @@ export function EtuListScreen(p) {
         const c = etuCounts(v);
         const e = estates.find((x) => x.id === v.estateId) || {};
         return (
-          <Pressable key={v.id} style={styles.card} onPress={() => p.onOpen(v.id)}>
+          <SwipeRow key={v.id} onDelete={() => p.onDelete(v.id)} label={(e.name || 'visit') + ' ' + v.date}>
+          <Pressable style={[styles.card, styles.swipeCard]} onPress={() => p.onOpen(v.id)}>
             <DateBox date={v.date} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.rcardTitle} numberOfLines={2}>{(e.name || 'No estate') + ' Estate'}</Text>
+              <Text style={styles.rcardTitle} numberOfLines={2}>{e.name ? e.name + (/estate$/i.test(e.name) ? '' : ' Estate') : 'No estate chosen'}</Text>
               <T style={styles.meta} numberOfLines={2}>{[e.region, e.sou, v.visitedBy].filter(Boolean).join(' · ') || 'Tap to add details'}</T>
               <View style={styles.chips}>
                 <Chip tone={v.status === 'done' ? 'good' : 'rnd'} dot label={v.status === 'done' ? 'Completed' : 'In progress'} />
@@ -66,8 +71,10 @@ export function EtuListScreen(p) {
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.muted} />
           </Pressable>
+          </SwipeRow>
         );
       })}
+      <SuggestedVisits {...p} est={est} />
     </ScrollView>
   );
 }
@@ -259,5 +266,48 @@ export function EtuObsScreen(p) {
 
       <DeleteBox label="Remove this observation?" button="Remove observation" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
     </ScrollView>
+  );
+}
+
+// ===== Suggested next visits: worst fields not visited (ETU) in the last 30 days =====
+function SuggestedVisits(p) {
+  const { etu, est } = p;
+  const since = addDays(today(), -30);
+  const lastVisit = (fid) =>
+    etu
+      .filter((v) => (v.fields || []).some((x) => x.fieldId === fid))
+      .map((v) => v.date || '')
+      .sort()
+      .pop();
+  const list = fieldPriorities(p)
+    .filter((it) => est === 'all' || it.e.id === est)
+    .map((it) => ({ ...it, last: lastVisit(it.f.id) }))
+    .filter((it) => !it.last || it.last < since)
+    .slice(0, 5);
+  if (!list.length) return null;
+  return (
+    <Section icon="navigate-outline" title="Suggested next visits">
+      <T style={[styles.hint, { marginTop: -6 }]}>Worst fields with no ETU visit in the last 30 days</T>
+      {list.map((it) => (
+        <View key={it.key} style={styles.ovRow}>
+          <View style={[styles.ovCode, TONE_BG[it.tone]]}>
+            <Text style={[styles.ovCodeText, { color: TONE_FG[it.tone] }]} numberOfLines={1}>
+              {it.f.code}
+            </Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <T style={styles.bold} numberOfLines={1}>{it.e.name}</T>
+            <T style={styles.meta} numberOfLines={2}>
+              {it.reasons.map((r) => r.t).join(' · ')}
+            </T>
+            <T style={styles.hint}>{it.last ? 'Last ETU visit ' + showDate(it.last) : 'Never visited'}</T>
+          </View>
+          <Pressable style={styles.smallBtn} onPress={() => p.onNewForField(it.e.id, it.f.id)} accessibilityLabel={'Visit field ' + it.f.code}>
+            <Ionicons name="walk" size={16} color="#fff" />
+            <T style={styles.smallBtnText}>Visit</T>
+          </Pressable>
+        </View>
+      ))}
+    </Section>
   );
 }

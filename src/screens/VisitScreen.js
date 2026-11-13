@@ -250,7 +250,7 @@ export function VisitScreen(p) {
 
       <Pressable onPress={p.onDelete} style={styles.delRow}>
         <Ionicons name="trash-outline" size={16} color={C.att} />
-        <T style={{ color: C.att }}>Delete this visit</T>
+        <T style={{ color: C.attInk }}>Delete this visit</T>
       </Pressable>
     </ScrollView>
   );

@@ -1,0 +1,211 @@
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, Image, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { CTA, Chip, DateBox, PageHead, Section } from '../components/ui';
+import { Dropdown } from '../components/Dropdown';
+import { newId, showDate } from '../logic/dates';
+import { ESTAT } from '../logic/etu';
+import { buildImport, groupsToVisits, parseChat } from '../logic/whatsapp';
+import { keepPhoto } from '../storage';
+import { pickChatFiles } from '../whatsappFiles';
+import { C, T, styles } from '../theme';
+
+// =====================================================
+// IMPORT A WHATSAPP CHAT INTO ETU VISITS
+// =====================================================
+export function WaImportScreen({ estates, fields, onImport }) {
+  const [chat, setChat] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const [fallback, setFallback] = useState(estates.length === 1 ? estates[0].id : null);
+
+  const result = useMemo(() => {
+    if (!chat) return null;
+    return buildImport(parseChat(chat.text), estates, fields, null);
+  }, [chat, estates, fields]);
+
+  const pick = async () => {
+    setMsg('');
+    setBusy(true);
+    try {
+      const c = await pickChatFiles();
+      if (c) setChat(c);
+    } catch (e) {
+      setMsg(e.message);
+    }
+    setBusy(false);
+  };
+
+  const groups = result ? result.groups.filter((g) => g.fields.some((f) => f.obs.length)) : [];
+  const allFiles = groups.flatMap((g) => g.fields.flatMap((f) => f.obs.flatMap((o) => o.files)));
+  const found = chat ? allFiles.filter((n) => chat.photos[n]).length : 0;
+  const noEstate = groups.filter((g) => !g.estateId && !g.estateName).length;
+  const newNames = [...new Set(groups.filter((g) => !g.estateId && g.estateName).map((g) => g.estateName))];
+  const nObs = groups.reduce((n, g) => n + g.fields.reduce((m, f) => m + f.obs.length, 0), 0);
+  const blocked = noEstate > 0 && !fallback;
+
+  const doImport = () => {
+    setBusy(true);
+    try {
+      const kept = {};
+      const out = groupsToVisits(groups, {
+        estates,
+        fallbackEstateId: fallback,
+        newId,
+        photoUri: (name) => {
+          if (!chat.photos[name]) return null;
+          if (!kept[name]) kept[name] = keepPhoto(chat.photos[name]);
+          return kept[name];
+        },
+      });
+      onImport(out);
+    } catch (e) {
+      setMsg('Could not import: ' + e.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <PageHead icon="logo-whatsapp" title="Import WhatsApp chat" sub="Observations and photos become ETU visits" />
+
+      {!chat && (
+        <Section icon="information-circle-outline" title="How to export">
+          <T style={styles.meta}>
+            1. In WhatsApp open the group or chat · tap ⋮ (or the name) · More · Export chat ·{' '}
+            <T style={styles.bold}>Include media</T>.{'\n'}
+            2. Save it to Files or Google Drive.{'\n'}
+            3. Tap the button below and pick the <T style={styles.bold}>.zip</T>, or the{' '}
+            <T style={styles.bold}>.txt</T> together with its photos (select several).
+          </T>
+          <T style={styles.hint}>
+            Tip: name the place in a message before the photos, e.g. &quot;Bukit Badak Field 2016A&quot;. Write
+            &quot;Action: …&quot; on a new line for the action plan.
+          </T>
+        </Section>
+      )}
+
+      <CTA
+        label={busy ? 'READING…' : chat ? 'PICK OTHER FILES' : 'PICK CHAT FILES'}
+        icon="document-attach-outline"
+        secondary={!!chat}
+        onPress={busy ? undefined : pick}
+      />
+      {busy && <ActivityIndicator color={C.accent} />}
+      {msg ? <T style={[styles.hint, { color: C.attInk }]}>{msg}</T> : null}
+
+      {result && (
+        <>
+          <Section icon="checkmark-done-outline" title="Found in the chat">
+            <View style={styles.chips}>
+              <Chip tone="muted" label={result.stats.messages + ' messages'} />
+              <Chip tone="good" icon="eye" label={nObs + ' observations'} />
+              <Chip tone={found < allFiles.length ? 'mon' : 'good'} icon="image" label={found + ' of ' + allFiles.length + ' photos'} />
+              {newNames.length > 0 && <Chip tone="rnd" icon="add-circle" label={newNames.length + ' new estate'} />}
+            </View>
+            {allFiles.length > found && (
+              <T style={styles.hint}>
+                {allFiles.length - found} photos are named in the chat but were not picked. Export with &quot;Include
+                media&quot;, or pick the photos together with the .txt.
+              </T>
+            )}
+            {result.stats.omitted > 0 && (
+              <T style={styles.hint}>{result.stats.omitted} media were left out of the export (&quot;Media omitted&quot;).</T>
+            )}
+            {noEstate > 0 && (
+              <Dropdown
+                label="Estate for messages that do not name one"
+                value={fallback}
+                options={estates.map((e) => ({ value: e.id, label: e.name }))}
+                onChange={setFallback}
+                placeholder="Choose estate"
+              />
+            )}
+          </Section>
+
+          {groups.length === 0 && (
+            <Section icon="alert-circle-outline" title="No observations found">
+              <T style={styles.meta}>
+                The chat was read, but no message looked like an observation. Make sure messages name the estate and
+                field, e.g. &quot;Bukit Badak Field 2016A bagworm on lower fronds&quot;.
+              </T>
+            </Section>
+          )}
+
+          {groups.map((g) => (
+            <GroupCard key={g.key} g={g} photos={chat.photos} estates={estates} fallback={fallback} />
+          ))}
+
+          {groups.length > 0 && (
+            <CTA
+              label={blocked ? 'CHOOSE AN ESTATE ABOVE' : 'IMPORT ' + groups.length + ' VISIT' + (groups.length === 1 ? '' : 'S')}
+              icon="download-outline"
+              color={blocked ? C.faint : undefined}
+              onPress={blocked || busy ? undefined : doImport}
+            />
+          )}
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+function GroupCard({ g, photos, estates, fallback }) {
+  const e = g.estateId ? estates.find((x) => x.id === g.estateId) : null;
+  const fb = !g.estateId && !g.estateName ? estates.find((x) => x.id === fallback) : null;
+  const name = e ? e.name : g.estateName || (fb ? fb.name : 'Estate not named');
+  return (
+    <View style={styles.section}>
+      <View style={styles.visitHead}>
+        <DateBox date={g.date} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.rcardTitle}>{name}</Text>
+          <View style={styles.chips}>
+            {!e && g.estateName ? <Chip tone="rnd" icon="add-circle" label="New estate" /> : null}
+            {!e && !g.estateName ? <Chip tone={fb ? 'muted' : 'att'} label={fb ? 'Chosen estate' : 'Choose estate'} /> : null}
+            <Chip tone="muted" label={showDate(g.date)} />
+          </View>
+        </View>
+      </View>
+      {g.fields
+        .filter((f) => f.obs.length)
+        .map((f) => (
+          <View key={f.code} style={styles.waField}>
+            <View style={styles.rowBetween}>
+              <T style={styles.bold}>{f.code === 'GENERAL' ? 'General (no field named)' : 'Field ' + f.code}</T>
+              {!f.fieldId && f.code !== 'GENERAL' ? <Chip tone="rnd" label="new field" /> : null}
+            </View>
+            {f.obs.map((o, i) => (
+              <View key={i} style={styles.waObs}>
+                <View style={styles.chips}>
+                  <Chip tone={ESTAT[o.status].tone} icon={ESTAT[o.status].icon} label={ESTAT[o.status].short} />
+                  <Chip tone="muted" label={o.category} />
+                </View>
+                {o.issue ? <T style={styles.meta} numberOfLines={3}>{o.issue}</T> : null}
+                {o.action ? (
+                  <T style={styles.hint} numberOfLines={2}>
+                    Action: {o.action}
+                  </T>
+                ) : null}
+                {o.files.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={styles.photoRow}>
+                      {o.files.map((n) =>
+                        photos[n] ? (
+                          <Image key={n} source={{ uri: photos[n] }} style={styles.thumbS} />
+                        ) : (
+                          <View key={n} style={[styles.thumbS, styles.thumbMissing]}>
+                            <Ionicons name="image-outline" size={18} color={C.faint} />
+                          </View>
+                        )
+                      )}
+                    </View>
+                  </ScrollView>
+                )}
+              </View>
+            ))}
+          </View>
+        ))}
+    </View>
+  );
+}

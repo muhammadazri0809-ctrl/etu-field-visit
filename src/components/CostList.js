@@ -12,7 +12,8 @@ export function costTone(v) {
   if (v > 0) return 'mon';
   return 'good';
 }
-const FG = { att: C.att, mon: C.mon, good: C.good, muted: C.muted };
+const FG = { att: C.attInk, mon: C.monInk, good: C.goodInk, muted: C.muted };
+const BAR = { att: C.att, mon: C.amber, good: C.good, muted: C.muted };
 const BG = { att: C.attBg, mon: C.monBg, good: C.goodBg, muted: C.sunk };
 
 // Variance pill: arrow + percent (+ word when over the limit), never colour alone
@@ -41,7 +42,7 @@ export function VarBar({ v }) {
       <View
         style={[
           styles.vbarFill,
-          { width: w + '%', backgroundColor: FG[tone] },
+          { width: w + '%', backgroundColor: BAR[tone] },
           v !== null && v >= 0 ? { left: '50%' } : { right: '50%' },
         ]}
       />

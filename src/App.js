@@ -23,6 +23,8 @@ import { ProfitScreen } from './screens/ProfitScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { UploadScreen } from './screens/UploadScreen';
 import { VisitScreen } from './screens/VisitScreen';
+import { WaImportScreen } from './screens/WaImportScreen';
+import { UndoBar } from './components/SwipeRow';
 import { C, T, styles } from './theme';
 import { KEYS, useSavedState } from './useSavedState';
 import { clearPhotos } from './storage';
@@ -84,6 +86,18 @@ function App() {
     return () => sub.remove();
   }, [stack]);
 
+  // Undo bar after deleting a visit, and short notices (e.g. after an import)
+  const [undo, setUndo] = useState(null);
+  const [notice, setNotice] = useState('');
+  useEffect(() => {
+    if (!undo && !notice) return undefined;
+    const t = setTimeout(() => {
+      setUndo(null);
+      setNotice('');
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [undo, notice]);
+
   // Use the limits from Settings for all triggers (only when Settings change)
   useMemo(() => applySettings(settings), [settings]);
 
@@ -116,6 +130,22 @@ function App() {
     setEtu((prev) => prev.map((x) => (x.id === v.id ? v : x)));
     setActions((prev) => syncEtuActions(v, prev));
   };
+  // Delete a visit (and its follow-ups) but keep a copy for Undo
+  const deleteEtu = (id) => {
+    const v = etu.find((x) => x.id === id);
+    if (!v) return;
+    const key = 'etu-' + v.id + '-';
+    setUndo({ visit: v, actions: actions.filter((a) => a.id.startsWith(key)) });
+    setEtu((prev) => prev.filter((x) => x.id !== id));
+    setActions((prev) => prev.filter((a) => !a.id.startsWith(key)));
+  };
+  const undoDelete = () => {
+    if (!undo) return;
+    setEtu((prev) => [undo.visit, ...prev]);
+    setActions((prev) => [...undo.actions, ...prev]);
+    setUndo(null);
+  };
+
   const newEtu = (estateId, fieldId) => {
     const last = [...etu].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
     const f = fieldId && fields.find((x) => x.id === fieldId);
@@ -215,7 +245,34 @@ function App() {
     );
   } else if (screen.name === 'etu') {
     sub = 'ETU field visit';
-    body = <EtuListScreen {...common} estateId={screen.estateId} onNew={(eid) => newEtu(eid)} onOpen={(id) => go({ name: 'etuvisit', id: id })} />;
+    body = (
+      <EtuListScreen
+        {...common}
+        estateId={screen.estateId}
+        onNew={(eid) => newEtu(eid)}
+        onOpen={(id) => go({ name: 'etuvisit', id: id })}
+        onImportWa={() => go({ name: 'waimport' })}
+        onNewForField={(eid, fid) => newEtu(eid, fid)}
+        onDelete={deleteEtu}
+      />
+    );
+  } else if (screen.name === 'waimport') {
+    sub = 'Visits · Import WhatsApp chat';
+    body = (
+      <WaImportScreen
+        estates={estates}
+        fields={fields}
+        onImport={(out) => {
+          if (out.newEstates.length) setEstates((prev) => [...prev, ...out.newEstates]);
+          setEtu((prev) => [...out.visits, ...prev]);
+          setActions((prev) => out.visits.reduce((acc, v) => syncEtuActions(v, acc), prev));
+          setNotice(
+            out.visits.length + ' visit' + (out.visits.length === 1 ? '' : 's') + ' imported · ' + out.attached + ' photos'
+          );
+          goBack();
+        }}
+      />
+    );
   } else if (screen.name === 'etuvisit') {
     const v = etu.find((x) => x.id === screen.id);
     if (!v) return null;
@@ -387,13 +444,29 @@ function App() {
     <View style={styles.app}>
       <Backdrop />
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-      <TopBar sub={sub} onBack={back} top={insets.top} />
+      <TopBar
+        sub={sub}
+        onBack={back}
+        top={insets.top}
+        action={
+          screen.name === 'home' && estates.length
+            ? { icon: 'cloud-upload-outline', label: 'Upload estate data', onPress: () => go({ name: 'upload' }) }
+            : null
+        }
+      />
       {storeError ? (
         <View style={styles.storeWarn}>
           <T style={styles.storeWarnText}>{storeError}</T>
         </View>
       ) : null}
       <View style={{ flex: 1 }}>{body}</View>
+      {undo ? (
+        <UndoBar text="Visit deleted" onUndo={undoDelete} />
+      ) : notice ? (
+        <View style={styles.undoBar}>
+          <T style={styles.undoText}>{notice}</T>
+        </View>
+      ) : null}
       {inVisit ? (
         <View style={{ height: insets.bottom }} />
       ) : (

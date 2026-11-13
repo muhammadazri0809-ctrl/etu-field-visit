@@ -113,7 +113,7 @@ export function UploadScreen({ estates, fields, onImport, onDone }) {
         <View style={[styles.result, TONE_BG.good]}>
           <Ionicons name="checkmark-circle" size={22} color={C.good} />
           <View style={{ flex: 1, gap: 6 }}>
-            <T style={[styles.bold, { color: C.good }]}>
+            <T style={[styles.bold, { color: C.goodInk }]}>
               Imported: {done.newE} new estates, {done.newF} new fields, {done.updF} fields updated
               {done.delE + done.delF > 0 ? ', ' + done.delE + ' estates and ' + done.delF + ' fields removed' : ''}
               {done.nv || done.na ? ', ' + done.nv + ' visits and ' + done.na + ' follow-ups added' : ''}.
