@@ -1,4 +1,4 @@
-// ETU FIELD VISIT v7.3 (tidy pages, reads full estate report workbook, region/SOU lookup, fields, upload, photos, settings)
+// ETU FIELD VISIT v7.6 (bottom nav, new dashboard, step-by-step visit, ETU field visit, ranked priorities, tidy pages, profit in RM mil, region/SOU in Estates, reads full estate report workbook, region/SOU lookup, fields, upload, photos, settings)
 // Site visits + 10 activity triggers + follow-up actions
 // + 12 cost elements + estate profit
 import React, { useState, useEffect } from 'react';
@@ -453,6 +453,14 @@ function pctText(v) {
   return (v > 0 ? '+' : '') + v.toFixed(1) + '%';
 }
 
+// RM'000 -> "RM 16.26 mil"
+function rmMil(v) {
+  const n = num(v);
+  if (n === null) return '-';
+  const s = (n / 1000).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return 'RM ' + s + ' mil';
+}
+
 function money(v) {
   const n = num(v);
   return n === null ? '-' : Math.round(n).toLocaleString('en-MY');
@@ -854,6 +862,7 @@ function TopBar({ sub, onBack, alerts, onBell }) {
           {sub}
         </T>
       </View>
+      {onBell ? (
       <Pressable style={styles.iconBtn} onPress={onBell}>
         <Ionicons name="notifications-outline" size={20} color={C.ink} />
         {alerts > 0 && (
@@ -862,6 +871,7 @@ function TopBar({ sub, onBack, alerts, onBell }) {
           </View>
         )}
       </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -1095,12 +1105,14 @@ export default function App() {
   const [actions, setActions] = useSavedState('v3-actions', []);
   const [settings, setSettings] = useSavedState('v5-settings', {});
   const [sel, setSel] = useSavedState('v6-lookup', {});
+  const [etu, setEtu] = useSavedState('v8-etu', []);
   // Page history: the last page is the one on screen
   const [stack, setStack] = useState([{ name: 'home' }]);
   const screen = stack[stack.length - 1];
   const go = (s) => setStack([...stack, s]);
   const goBack = () => setStack(stack.length > 1 ? stack.slice(0, -1) : stack);
   const goHome = () => setStack([{ name: 'home' }]);
+  const goTab = (k) => setStack([{ name: k }]);
 
   // Phone back button = previous page (not close the app)
   useEffect(() => {
@@ -1141,6 +1153,22 @@ export default function App() {
 
   const openCount = actions.filter((a) => a.status !== 'done').length;
 
+  // ----- ETU field visits -----
+  const saveEtu = (v) => {
+    setEtu(etu.map((x) => (x.id === v.id ? v : x)));
+    setActions(syncEtuActions(v, actions));
+  };
+  const newEtu = (estateId, fieldId) => {
+    const last = [...etu].sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+    const f = fieldId && fields.find((x) => x.id === fieldId);
+    const v = {
+      id: newId(), estateId: estateId || null, date: today(), visitedBy: last ? last.visitedBy || '' : '',
+      fields: f ? [{ id: newId(), fieldId: f.id, code: f.code, obs: [] }] : [], notes: '', status: 'draft',
+    };
+    setEtu([v, ...etu]);
+    go({ name: 'etuvisit', id: v.id });
+  };
+
   // Start a visit (optionally with fields already ticked)
   const newVisit = (estateId, fieldIds) => {
     const v = { id: newId(), estateId: estateId, date: today(), fieldIds: fieldIds || [], checks: {} };
@@ -1148,7 +1176,7 @@ export default function App() {
     openVisit(v.id);
   };
   const common = {
-    estates, fields, visits, actions,
+    estates, fields, visits, actions, etu,
     onSaveAction: saveAction,
     onDeleteAction: deleteAction,
     onOpenEstate: openEstate,
@@ -1173,7 +1201,10 @@ export default function App() {
         onChange={saveEstate}
         onAddField={(f) => setFields([...fields, f])}
         onNewVisit={() => newVisit(e.id, [])}
+        onNewEtu={() => newEtu(e.id)}
+        onOpenEtu={() => go({ name: 'etu', estateId: e.id })}
         onDelete={() => {
+          setEtu(etu.filter((x) => x.estateId !== e.id));
           setEstates(estates.filter((x) => x.id !== e.id));
           setFields(fields.filter((f) => f.estateId !== e.id));
           setVisits(visits.filter((v) => v.estateId !== e.id));
@@ -1195,7 +1226,7 @@ export default function App() {
         estate={e}
         tab={screen.tab}
         onChange={saveField}
-        onNewVisit={() => newVisit(e.id, [f.id])}
+        onNewVisit={() => newEtu(e.id, f.id)}
         onDelete={() => {
           setFields(fields.filter((x) => x.id !== f.id));
           setActions(actions.filter((a) => a.fieldId !== f.id));
@@ -1225,6 +1256,73 @@ export default function App() {
         }}
       />
     );
+  } else if (screen.name === 'etu') {
+    sub = 'ETU field visit';
+    body = <EtuListScreen {...common} estateId={screen.estateId} onNew={(eid) => newEtu(eid)} onOpen={(id) => go({ name: 'etuvisit', id: id })} />;
+  } else if (screen.name === 'etuvisit') {
+    const v = etu.find((x) => x.id === screen.id);
+    if (!v) return null;
+    const e = estates.find((x) => x.id === v.estateId);
+    sub = 'ETU visit · ' + (e ? e.name + ' · ' : '') + showDate(v.date);
+    body = (
+      <EtuVisitScreen
+        {...common}
+        visit={v}
+        key={v.id}
+        onChange={saveEtu}
+        onClose={goBack}
+        onOpenField={(fid) => go({ name: 'etufield', vid: v.id, fid: fid })}
+        onDelete={() => {
+          setEtu(etu.filter((x) => x.id !== v.id));
+          setActions(actions.filter((a) => !a.id.startsWith('etu-' + v.id + '-')));
+          goBack();
+        }}
+      />
+    );
+  } else if (screen.name === 'etufield' || screen.name === 'etuobs') {
+    const v = etu.find((x) => x.id === screen.vid);
+    const vf = v && (v.fields || []).find((x) => x.id === screen.fid);
+    if (!v || !vf) return null;
+    const saveVf = (nf) => saveEtu({ ...v, fields: v.fields.map((x) => (x.id === nf.id ? nf : x)) });
+    if (screen.name === 'etufield') {
+      sub = 'ETU visit · Field ' + vf.code;
+      body = (
+        <EtuFieldScreen
+          {...common}
+          visit={v}
+          vf={vf}
+          onOpenObs={(oid) => go({ name: 'etuobs', vid: v.id, fid: vf.id, oid: oid })}
+          onAddObs={() => {
+            const o = newObs();
+            saveVf({ ...vf, obs: [...(vf.obs || []), o] });
+            go({ name: 'etuobs', vid: v.id, fid: vf.id, oid: o.id });
+          }}
+          onDelete={() => {
+            saveEtu({ ...v, fields: v.fields.filter((x) => x.id !== vf.id) });
+            goBack();
+          }}
+        />
+      );
+    } else {
+      const o = (vf.obs || []).find((x) => x.id === screen.oid);
+      if (!o) return null;
+      sub = 'Field ' + vf.code + ' · observation';
+      body = (
+        <EtuObsScreen
+          key={o.id}
+          obs={o}
+          vf={vf}
+          onChange={(no) => saveVf({ ...vf, obs: vf.obs.map((x) => (x.id === no.id ? no : x)) })}
+          onDelete={() => {
+            saveVf({ ...vf, obs: vf.obs.filter((x) => x.id !== o.id) });
+            goBack();
+          }}
+        />
+      );
+    }
+  } else if (screen.name === 'more') {
+    sub = 'More';
+    body = <MoreScreen {...common} onGo={(name) => go({ name: name })} />;
   } else if (screen.name === 'estates') {
     sub = 'Estates';
     body = (
@@ -1234,7 +1332,7 @@ export default function App() {
       />
     );
   } else if (screen.name === 'alerts') {
-    sub = 'Needs attention';
+    sub = 'Priorities';
     body = <AlertsScreen {...common} />;
   } else if (screen.name === 'profit') {
     sub = 'Profit by estate';
@@ -1254,6 +1352,7 @@ export default function App() {
           setFields([]);
           setVisits([]);
           setActions([]);
+          setEtu([]);
           setSel({});
           goHome();
         }}
@@ -1275,6 +1374,7 @@ export default function App() {
           const newA = na.map((a) => a.id);
           setEstates(es);
           setFields(fs);
+          setEtu(etu.filter((v) => eIds.includes(v.estateId)));
           setVisits(
             nv.concat(
               visits
@@ -1297,7 +1397,9 @@ export default function App() {
     body = (
       <HomeScreen
         {...common}
-        onGo={(name) => go({ name: name })}
+        onGo={(name) => (['estates', 'etu', 'alerts', 'more'].includes(name) ? goTab(name) : go({ name: name }))}
+        onNewEtu={() => newEtu(estates.length === 1 ? estates[0].id : null)}
+        onOpenEtu={(id) => go({ name: 'etuvisit', id: id })}
         onExample={() => {
           const ex = exampleData();
           setEstates(ex.estates);
@@ -1312,8 +1414,9 @@ export default function App() {
   return (
     <View style={styles.app}>
       <StatusBar barStyle="dark-content" backgroundColor={C.skyTop} />
-      <TopBar sub={sub} onBack={back} alerts={openCount} onBell={() => go({ name: 'alerts' })} />
+      <TopBar sub={sub} onBack={back} />
       <View style={{ flex: 1 }}>{body}</View>
+      <BottomNav active={stack[0].name} onGo={goTab} badge={actions.filter((a) => a.status !== 'done' && isOverdue(a)).length} />
     </View>
   );
 }
@@ -1377,6 +1480,22 @@ function FieldScreen(p) {
         }
       });
     });
+  // ETU field visit observations for this field
+  (p.etu || [])
+    .filter((v) => (v.fields || []).some((x) => x.fieldId === field.id))
+    .forEach((v) => {
+      const vf = v.fields.find((x) => x.fieldId === field.id);
+      (vf.obs || [])
+        .filter((o) => o.status !== 'good')
+        .forEach((o) => {
+          const map = { attention: 'action', monitor: 'monitor', rnd: 'monitor' };
+          hist.push({
+            key: v.id + o.id, date: v.date, title: 'ETU field visit · ' + ESTAT[o.status].short,
+            act: { id: 0, name: o.category + (o.title ? ': ' + o.title : '') }, st: map[o.status], note: o.issue || '', photos: o.photos || [], etu: true,
+          });
+        });
+    });
+  hist.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const lv = latestFieldVisit(visits, field.id);
   const lck = lv ? checkOf(lv, field.id) : null;
   const red = lv ? ACTIVITIES.filter((a) => actStatus(lck, a) === 'action').length : 0;
@@ -1404,7 +1523,7 @@ function FieldScreen(p) {
           <MenuRow icon="search-outline" title="Findings" sub={lv ? 'Latest: ' + (lv.title || 'visit') + ' ' + showDate(lv.date) : 'Not visited yet'} chip={hist.length ? hist.length + ' found' : null} tone={red ? 'att' : hist.length ? 'mon' : null} onPress={() => go('Findings')} />
           <MenuRow icon="flag-outline" title="Follow-ups" sub={open.length + ' open · ' + (fa.length - open.length) + ' done'} chip={late.length ? late.length + ' overdue' : null} tone={late.length ? 'att' : null} last onPress={() => go('Follow-ups')} />
         </Menu>
-        <CTA label="NEW VISIT TO THIS FIELD" icon="add" onPress={p.onNewVisit} />
+        <CTA label="NEW ETU VISIT TO THIS FIELD" icon="walk" onPress={p.onNewVisit} />
       </ScrollView>
     );
   }
@@ -1462,7 +1581,7 @@ function FieldScreen(p) {
               <DateBox date={h.date} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <T style={styles.kvLabel} numberOfLines={1}>{h.title}</T>
-                <T style={styles.bold}>{no2(h.act.id)}. {h.act.name}</T>
+                <T style={styles.bold}>{h.etu ? h.act.name : no2(h.act.id) + '. ' + h.act.name}</T>
                 {h.note ? <T style={styles.meta}>{h.note}</T> : null}
                 <View style={styles.chips}>
                   <Chip tone={STATUS[h.st].tone} dot label={STATUS[h.st].label} />
@@ -2734,13 +2853,13 @@ function GroupLookup(p) {
         ))}
       </Section>
       {rows.some((r) => num(r.e.profitAct) !== null) && (
-        <Section icon="bar-chart-outline" title="Profit by estate" right={<T style={styles.hint}>RM'000 YTD</T>}>
+        <Section icon="bar-chart-outline" title="Profit by estate" right={<T style={styles.hint}>YTD</T>}>
           {rows
             .filter((r) => num(r.e.profitAct) !== null)
             .map((r) => (
               <Bar
                 key={r.e.id}
-                label={r.e.name + '  ' + money(r.e.profitAct)}
+                label={r.e.name + '  ' + rmMil(r.e.profitAct)}
                 value={num(r.e.profitAct)}
                 max={maxP}
                 marker={num(r.e.profitBgt) === null ? undefined : num(r.e.profitBgt)}
@@ -3387,9 +3506,9 @@ function reportItems(result, es, fs) {
 // =====================================================
 
 // Big square button on Home
-function Tile({ icon, title, sub, tone, badge, onPress }) {
+function Tile({ icon, title, sub, tone, badge, onPress, wide }) {
   return (
-    <Pressable style={styles.tile} onPress={onPress}>
+    <Pressable style={[styles.tile, wide && { width: '100%' }]} onPress={onPress}>
       <View style={[styles.tileIc, tone && TONE_BG[tone]]}>
         <Ionicons name={icon} size={22} color={tone ? TONE_FG[tone] : C.accent} />
       </View>
@@ -3483,58 +3602,99 @@ function FilterChips({ options, value, onChange }) {
 }
 
 // =====================================================
-// ALL ALERTS (used by Home and the Alerts page)
+// PRIORITIES: one row per field, ranked by impact
+// tonnes lost = mature ha x (budget - actual) yield YTD
 // =====================================================
-function buildAlerts(p) {
+function fieldPriorities(p) {
   const { estates, fields, visits, actions } = p;
-  const fcode = (id) => (id ? (fields.find((f) => f.id === id) || {}).code || '?' : 'Estate');
-  const items = [];
-  actions
-    .filter((a) => a.status !== 'done' && isOverdue(a))
-    .forEach((a) => {
-      const e = estates.find((x) => x.id === a.estateId);
-      if (e) items.push({ key: a.id, kind: 'follow', go: () => p.onOpenEstate(e.id, 'Follow-ups'), tone: 'att', icon: 'time', title: e.name + ' · ' + fcode(a.fieldId), text: a.text, sub: 'Overdue since ' + showDate(a.due) + ' · PIC ' + (a.pic || '-') });
-    });
-  estates.forEach((e) => {
-    visits
-      .filter((x) => x.estateId === e.id)
-      .forEach((vv) => {
-        // only the latest visit per field counts
-        findings(vv)
-          .filter((x) => x.st === 'action' && latestFieldVisit(visits, x.fieldId) === vv)
-          .forEach((x) => {
-            items.push({ key: vv.id + x.fieldId + x.act.id, kind: 'activity', go: () => p.onOpenField(x.fieldId, 'Findings'), tone: 'att', icon: x.act.icon, title: e.name + ' · ' + fcode(x.fieldId), text: x.act.name, sub: x.note || (vv.title || 'Visit') + ' ' + showDate(vv.date) });
-          });
-      });
-    fields
-      .filter((f) => f.estateId === e.id)
-      .forEach((f) => {
-        const ys = yieldStatus(f);
-        if (ys === 'action' || ys === 'monitor') {
-          items.push({ key: f.id + 'y', kind: 'yield', go: () => p.onOpenField(f.id, 'Details'), tone: ys === 'action' ? 'att' : 'mon', icon: 'trending-down', title: e.name + ' · ' + f.code, text: 'Yield ' + pctText(yieldVar(f)) + ' vs budget', sub: f.ypAct + ' vs ' + f.ypBgt + ' mt/ha' });
-        }
-        const ca = costAlerts(f);
-        if (ca.length) {
-          items.push({ key: f.id + 'c', kind: 'cost', go: () => p.onOpenField(f.id, 'Cost'), tone: 'att', icon: 'cash', title: e.name + ' · ' + f.code, text: ca.length + ' cost over budget', sub: ca.slice(0, 3).join(', ') + (ca.length > 3 ? '…' : '') });
-        }
-      });
-    const pv = profitVar(e);
-    if (pv !== null && pv < 0) {
-      items.push({ key: e.id + 'p', kind: 'profit', go: () => p.onOpenEstate(e.id, 'Profit'), tone: 'mon', icon: 'trending-down', title: e.name, text: 'Profit below budget', sub: pctText(pv) + ' vs budget' });
+  const etu = p.etu || [];
+  const out = [];
+  fields.forEach((f) => {
+    const e = estates.find((x) => x.id === f.estateId);
+    if (!e) return;
+    const ha = num(f.ha) || 0;
+    const gap = num(f.ypBgt) !== null && num(f.ypAct) !== null ? num(f.ypBgt) - num(f.ypAct) : 0;
+    const tLost = gap > 0 ? gap * ha : 0;
+    const ys = yieldStatus(f);
+    const ca = costAlerts(f);
+    const lv = latestFieldVisit(visits, f.id);
+    const ck = lv ? checkOf(lv, f.id) : null;
+    const red = lv ? ACTIVITIES.filter((a) => actStatus(ck, a) === 'action').map((a) => a.name) : [];
+    const late = actions.filter((a) => a.fieldId === f.id && a.status !== 'done' && isOverdue(a));
+    // latest ETU visit that has this field
+    let att = 0;
+    const ev = etu
+      .filter((v) => (v.fields || []).some((x) => x.fieldId === f.id))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+    if (ev) {
+      const vf = ev.fields.find((x) => x.fieldId === f.id);
+      att = (vf.obs || []).filter((o) => o.status === 'attention').length;
     }
+    const yBad = ys === 'action' || ys === 'monitor';
+    if (!yBad && !ca.length && !red.length && !late.length && !att) return;
+    const reasons = [];
+    if (yBad) reasons.push({ t: 'Yield ' + pctText(yieldVar(f)), tone: ys === 'action' ? 'att' : 'mon' });
+    if (late.length) reasons.push({ t: late.length + ' overdue', tone: 'att' });
+    if (att) reasons.push({ t: att + ' ETU attention', tone: 'att' });
+    if (red.length) reasons.push({ t: red.length + ' activity', tone: 'att' });
+    if (ca.length) reasons.push({ t: ca.length + ' cost over', tone: 'mon' });
+    const score = tLost + 15 * late.length + 10 * att + 4 * red.length + 2 * ca.length;
+    out.push({
+      key: f.id, f: f, e: e, tLost: tLost, score: score, reasons: reasons,
+      tone: ys === 'action' || late.length || att ? 'att' : 'mon',
+      sub: red.length ? red.slice(0, 2).join(', ') : ca.length ? ca.slice(0, 2).join(', ') : '',
+    });
   });
-  const order = { follow: 0, activity: 1, yield: 2, cost: 3, profit: 4 };
-  return items.sort((a, b) => order[a.kind] - order[b.kind] || (a.tone === 'att' ? -1 : 1) - (b.tone === 'att' ? -1 : 1));
+  return out.sort((a, b) => b.score - a.score);
 }
 
-function AlertRow({ it }) {
+// estate-level items (follow-ups with no field, profit)
+function estatePriorities(p) {
+  const out = [];
+  p.actions
+    .filter((a) => !a.fieldId && a.status !== 'done' && isOverdue(a))
+    .forEach((a) => {
+      const e = p.estates.find((x) => x.id === a.estateId);
+      if (e) out.push({ key: a.id, e: e, icon: 'time', tone: 'att', text: a.text, sub: 'Overdue since ' + showDate(a.due) + ' · PIC ' + (a.pic || '-'), go: () => p.onOpenEstate(e.id, 'Follow-ups') });
+    });
+  p.estates.forEach((e) => {
+    const pv = profitVar(e);
+    if (pv !== null && pv < 0) out.push({ key: e.id + 'p', e: e, icon: 'trending-down', tone: 'mon', text: 'Profit below budget ' + pctText(pv), sub: rmMil(e.profitAct) + ' YTD', go: () => p.onOpenEstate(e.id, 'Profit') });
+  });
+  return out;
+}
+
+function PriorityRow({ it, rank, onPress }) {
+  return (
+    <Pressable style={styles.exRow} onPress={onPress}>
+      <View style={[styles.rankBox, TONE_BG[it.tone]]}>
+        <Text style={[styles.rankNo, { color: TONE_FG[it.tone] }]}>{rank}</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T style={styles.kvLabel} numberOfLines={1}>{it.e.name}</T>
+        <T style={styles.exTitle} numberOfLines={1}>
+          Field {it.f.code}
+          {it.tLost >= 1 ? <T style={[styles.meta, { color: C.att }]}>{'  ' + Math.round(it.tLost).toLocaleString('en-MY') + ' t below budget'}</T> : null}
+        </T>
+        <View style={[styles.chips, { marginTop: 3 }]}>
+          {it.reasons.map((r) => (
+            <Chip key={r.t} tone={r.tone} label={r.t} />
+          ))}
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={C.muted} />
+    </Pressable>
+  );
+}
+
+function EstateItemRow({ it }) {
   return (
     <Pressable style={styles.exRow} onPress={it.go}>
       <View style={[styles.exIc, TONE_BG[it.tone]]}>
         <Ionicons name={it.icon} size={19} color={TONE_FG[it.tone]} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <T style={styles.kvLabel} numberOfLines={1}>{it.title}</T>
+        <T style={styles.kvLabel} numberOfLines={1}>{it.e.name + ' · estate'}</T>
         <T style={styles.exTitle} numberOfLines={1}>{it.text}</T>
         <T style={styles.meta} numberOfLines={1}>{it.sub}</T>
       </View>
@@ -3544,62 +3704,59 @@ function AlertRow({ it }) {
 }
 
 // =====================================================
-// HOME: summary + menu tiles + top alerts
+// PRIORITIES PAGE
 // =====================================================
-function HomeScreen(p) {
-  const { estates, fields, actions } = p;
-  const items = buildAlerts(p);
-  const open = actions.filter((a) => a.status !== 'done');
-  const overdue = open.filter(isOverdue);
-  const red = items.filter((x) => x.tone === 'att').length;
-  const withProfit = estates.filter((e) => num(e.profitAct) !== null);
-  const totalProfit = withProfit.reduce((s, e) => s + (num(e.profitAct) || 0), 0);
-
+function AlertsScreen(p) {
+  const pri = fieldPriorities(p);
+  const est = estatePriorities(p);
+  const [kind, setKind] = useState('fields');
+  const [ee, setEe] = useState('all');
+  const [q, setQ] = useState('');
+  const estIds = [...new Set(pri.map((x) => x.e.id))];
+  const list = pri.filter((x) => (ee === 'all' || x.e.id === ee) && norm(x.f.code + x.e.name).includes(norm(q)));
+  const elist = est.filter((x) => ee === 'all' || x.e.id === ee);
   return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <Hero
-        eyebrow="Estate field visits"
-        title={items.length ? items.length + ' items need attention' : 'All in order'}
-        sub={estates.length ? fields.length + ' fields in ' + estates.length + ' estates' : 'No data yet'}
-        stats={[
-          { ic: 'alert-circle', v: String(red), l: 'Action', tone: red ? 'att' : 'good' },
-          { ic: 'flag', v: String(open.length), l: 'Follow-ups', tone: open.length ? 'mon' : 'good' },
-          { ic: 'time', v: String(overdue.length), l: 'Overdue', tone: overdue.length ? 'att' : 'good' },
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <PageHead icon="podium-outline" title="Priorities" sub="One row per field, worst first" />
+      <FilterChips
+        value={kind}
+        onChange={setKind}
+        options={[
+          { key: 'fields', label: 'Fields', n: pri.length },
+          { key: 'estate', label: 'Estate items', n: est.length },
         ]}
       />
-
-      {estates.length === 0 ? (
-        <Section icon="rocket-outline" title="Get started">
-          <T style={styles.hint}>Upload your estate workbook, or load example data to try the app.</T>
-          <CTA label="UPLOAD DATA" icon="cloud-upload" onPress={() => p.onGo('upload')} />
-          <CTA label="LOAD EXAMPLE DATA" icon="download-outline" color={C.rnd} onPress={p.onExample} />
-        </Section>
-      ) : (
-        <View style={styles.tileGrid}>
-          <Tile icon="business" title="Estates" sub={estates.length + ' estates · ' + fields.length + ' fields'} onPress={() => p.onGo('estates')} />
-          <Tile icon="search" title="Lookup" sub="Region · SOU · Field" onPress={() => p.onGo('lookup')} />
-          <Tile icon="alert-circle" title="Attention" sub={red + ' action · ' + (items.length - red) + ' other'} tone={red ? 'att' : 'good'} badge={items.length || null} onPress={() => p.onGo('alerts')} />
-          <Tile icon="bar-chart" title="Profit" sub={withProfit.length ? "RM " + money(totalProfit) + "'000 YTD" : 'No profit data'} tone="gold" onPress={() => p.onGo('profit')} />
-          <Tile icon="cloud-upload" title="Upload" sub="Excel · CSV" tone="rnd" onPress={() => p.onGo('upload')} />
-          <Tile icon="options" title="Settings" sub="Limits · clear data" tone="muted" onPress={() => p.onGo('settings')} />
-        </View>
+      {estIds.length > 1 && (
+        <FilterChips
+          value={ee}
+          onChange={setEe}
+          options={[{ key: 'all', label: 'All estates' }].concat(estIds.map((id) => ({ key: id, label: p.estates.find((e) => e.id === id).name })))}
+        />
       )}
-
-      {items.length > 0 && (
-        <View style={styles.exc}>
-          <View style={styles.excHead}>
-            <View style={[styles.hic, { backgroundColor: C.att }]}>
-              <Ionicons name="alert" size={17} color="#fff" />
-            </View>
-            <Text style={styles.excTitle}>TOP PRIORITIES</Text>
-            <View style={{ flex: 1 }} />
-            <Pressable onPress={() => p.onGo('alerts')} hitSlop={8}>
-              <T style={styles.link}>See all {items.length}</T>
-            </Pressable>
+      {kind === 'fields' ? (
+        <>
+          <SearchBox value={q} onChange={setQ} placeholder="Search field code" />
+          <View style={styles.exc}>
+            {list.slice(0, 150).map((it) => (
+              <PriorityRow key={it.key} it={it} rank={pri.indexOf(it) + 1} onPress={() => p.onOpenField(it.f.id)} />
+            ))}
+            {list.length === 0 && (
+              <View style={styles.exRow}>
+                <T style={styles.hint}>Nothing here.</T>
+              </View>
+            )}
           </View>
-          {items.slice(0, 4).map((it) => (
-            <AlertRow key={it.key} it={it} />
+        </>
+      ) : (
+        <View style={styles.exc}>
+          {elist.map((it) => (
+            <EstateItemRow key={it.key} it={it} />
           ))}
+          {elist.length === 0 && (
+            <View style={styles.exRow}>
+              <T style={styles.hint}>No estate-level items.</T>
+            </View>
+          )}
         </View>
       )}
     </ScrollView>
@@ -3614,11 +3771,67 @@ function EstatesScreen(p) {
   const [q, setQ] = useState('');
   const [name, setName] = useState('');
   const [adding, setAdding] = useState(false);
-  const list = estates.filter((e) => norm(e.name + e.region + e.sou).includes(norm(q)));
+  const [rg, setRg] = useSavedState('v7-region', ALL);
+  const [so, setSo] = useSavedState('v7-sou', ALL);
+  const regions = uniq(estates.map((e) => e.region));
+  const inRegion = estates.filter((e) => rg === ALL || e.region === rg);
+  const sous = uniq(inRegion.map((e) => e.sou));
+  const sou = sous.includes(so) ? so : ALL;
+  const list = inRegion
+    .filter((e) => sou === ALL || e.sou === sou)
+    .filter((e) => norm(e.name + e.region + e.sou).includes(norm(q)));
+  // summary of what is shown
+  const lf = fields.filter((f) => list.some((e) => e.id === f.estateId));
+  const ly = estateYield(lf);
+  const lp = list.filter((e) => num(e.profitAct) !== null).reduce((s, e) => s + num(e.profitAct), 0);
+  const filtered = rg !== ALL || sou !== ALL;
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <PageHead icon="business-outline" title="Estates" sub={estates.length + ' estates · ' + fields.length + ' fields'} />
-      {estates.length > 4 && <SearchBox value={q} onChange={setQ} placeholder="Search estate, region, SOU" />}
+      <View style={styles.selBar}>
+        <View style={styles.row2}>
+          <Dropdown
+            label="Region"
+            value={rg}
+            options={[{ value: ALL, label: 'All regions', sub: estates.length + ' estates' }].concat(
+              regions.map((r) => ({ value: r, label: r, sub: estates.filter((e) => e.region === r).length + ' estates' }))
+            )}
+            onChange={(v) => {
+              setRg(v);
+              setSo(ALL);
+            }}
+          />
+          <Dropdown
+            label="SOU"
+            value={sou}
+            options={[{ value: ALL, label: 'All SOU', sub: inRegion.length + ' estates' }].concat(
+              sous.map((s) => ({ value: s, label: s, sub: inRegion.filter((e) => e.sou === s).length + ' estates' }))
+            )}
+            onChange={setSo}
+          />
+        </View>
+      </View>
+      {estates.length > 0 && (
+        <View style={styles.sumRow}>
+          <View style={styles.sumItem}>
+            <Text style={styles.sumVal}>{list.length}</Text>
+            <T style={styles.sumLbl}>{filtered ? 'Estates shown' : 'Estates'}</T>
+          </View>
+          <View style={styles.sumItem}>
+            <Text style={styles.sumVal}>{ly ? Math.round(ly.ha).toLocaleString('en-MY') : '-'}</Text>
+            <T style={styles.sumLbl}>Mature ha</T>
+          </View>
+          <View style={styles.sumItem}>
+            <Text style={[styles.sumVal, ly && { color: ly.v < LIMITS.yieldAmber ? C.att : C.good }]}>{ly ? pctText(ly.v) : '-'}</Text>
+            <T style={styles.sumLbl}>Yield vs bgt</T>
+          </View>
+          <View style={styles.sumItem}>
+            <Text style={styles.sumVal}>{lp ? (lp / 1000).toFixed(1) : '-'}</Text>
+            <T style={styles.sumLbl}>Profit RM mil</T>
+          </View>
+        </View>
+      )}
+      {estates.length > 4 && <SearchBox value={q} onChange={setQ} placeholder="Search estate" />}
       {list.map((e) => {
         const ef = fields.filter((f) => f.estateId === e.id);
         const ey = estateYield(ef);
@@ -3675,43 +3888,6 @@ function EstatesScreen(p) {
 }
 
 // =====================================================
-// ALERTS PAGE (with filters)
-// =====================================================
-function AlertsScreen(p) {
-  const items = buildAlerts(p);
-  const [kind, setKind] = useState('all');
-  const [q, setQ] = useState('');
-  const n = (k) => items.filter((x) => x.kind === k).length;
-  const opts = [
-    { key: 'all', label: 'All', n: items.length },
-    { key: 'follow', label: 'Overdue', n: n('follow') },
-    { key: 'activity', label: 'Activities', n: n('activity') },
-    { key: 'yield', label: 'Yield', n: n('yield') },
-    { key: 'cost', label: 'Cost', n: n('cost') },
-    { key: 'profit', label: 'Profit', n: n('profit') },
-  ].filter((o) => o.key === 'all' || o.n > 0);
-  const list = items.filter((x) => (kind === 'all' || x.kind === kind) && norm(x.title + x.text).includes(norm(q)));
-  return (
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <PageHead icon="alert-circle-outline" title="Needs attention" sub={items.length + ' items · tap one to open it'} />
-      <FilterChips options={opts} value={kind} onChange={setKind} />
-      <SearchBox value={q} onChange={setQ} placeholder="Search estate, field, issue" />
-      <View style={styles.exc}>
-        {list.slice(0, 150).map((it) => (
-          <AlertRow key={it.key} it={it} />
-        ))}
-        {list.length === 0 && (
-          <View style={styles.exRow}>
-            <T style={styles.hint}>Nothing here.</T>
-          </View>
-        )}
-      </View>
-      {list.length > 150 && <T style={styles.hint}>Showing 150 of {list.length}. Use the filters or search.</T>}
-    </ScrollView>
-  );
-}
-
-// =====================================================
 // PROFIT PAGE (all estates)
 // =====================================================
 function ProfitScreen(p) {
@@ -3721,7 +3897,7 @@ function ProfitScreen(p) {
   const total = list.reduce((s, e) => s + (num(e.profitAct) || 0), 0);
   return (
     <ScrollView contentContainerStyle={styles.page}>
-      <PageHead icon="bar-chart-outline" title="Profit by estate" sub={"RM'000 YTD · total RM " + money(total) + "'000"} />
+      <PageHead icon="bar-chart-outline" title="Profit by estate" sub={'YTD · total ' + rmMil(total)} />
       {list.length === 0 && <Empty title="No profit data" text="Upload the workbook (P&L sheet) or type it in each estate's Profit page." />}
       {list.length > 0 && (
         <Section icon="podium-outline" title="Actual vs budget">
@@ -3730,7 +3906,7 @@ function ProfitScreen(p) {
             return (
               <Bar
                 key={e.id}
-                label={e.name + '  ' + money(e.profitAct)}
+                label={e.name + '  ' + rmMil(e.profitAct)}
                 value={num(e.profitAct) || 0}
                 max={maxP}
                 marker={num(e.profitBgt) === null ? undefined : num(e.profitBgt)}
@@ -3752,7 +3928,7 @@ function ProfitScreen(p) {
               key={e.id}
               icon="trending-up"
               title={e.name}
-              sub={"RM " + money(e.profitAct) + "'000" + (perHa !== null ? ' · RM ' + money(perHa) + '/ha' : '')}
+              sub={rmMil(e.profitAct) + (perHa !== null ? ' · RM ' + money(perHa) + '/ha' : '')}
               chip={pv === null ? 'No budget' : pctText(pv)}
               tone={pv === null ? 'muted' : pv < 0 ? 'att' : 'good'}
               last={i === list.length - 1}
@@ -3791,6 +3967,8 @@ function EstateScreen(p) {
     return lv ? ACTIVITIES.filter((a) => actStatus(checkOf(lv, f.id), a) === 'action').length : 0;
   };
   const aRed = ef.filter((f) => fieldRed(f) > 0).length;
+  const eEtu = (p.etu || []).filter((v) => v.estateId === estate.id).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const eAtt = eEtu.length ? etuCounts(eEtu[0]).attention : 0;
 
   // ---------- menu page ----------
   if (!tab) {
@@ -3810,13 +3988,14 @@ function EstateScreen(p) {
         />
         <Menu>
           <MenuRow icon="grid-outline" title="Fields" sub={ef.length + ' fields · ' + yLow + ' yield below budget'} chip={aRed ? aRed + ' action' : null} tone={aRed ? 'att' : null} onPress={() => go('Fields')} />
-          <MenuRow icon="calendar-outline" title="Site visits" sub={ev.length ? ev.length + ' visits · latest ' + showDate(ev[0].date) : 'No visits yet'} onPress={() => go('Visits')} />
+          <MenuRow icon="walk-outline" title="ETU field visits" sub={eEtu.length ? eEtu.length + ' visits · latest ' + showDate(eEtu[0].date) : 'No ETU visits yet'} chip={eAtt ? eAtt + ' attention' : null} tone={eAtt ? 'att' : null} onPress={p.onOpenEtu} />
+          <MenuRow icon="calendar-outline" title="Assessments & checks" sub={ev.length ? ev.length + ' · PMU, agronomist, activity checks' : 'None yet'} onPress={() => go('Visits')} />
           <MenuRow icon="flag-outline" title="Follow-ups" sub={open.length + ' open · ' + (ea.length - open.length) + ' done'} chip={late.length ? late.length + ' overdue' : null} tone={late.length ? 'att' : null} onPress={() => go('Follow-ups')} />
           <MenuRow icon="cash-outline" title="Cost" sub={'12 elements · ' + costAlerts(ec).length + ' over budget (estate)'} chip={cOver ? cOver + ' fields over' : null} tone={cOver ? 'mon' : null} onPress={() => go('Cost')} />
-          <MenuRow icon="trending-up" title="Profit" sub={num(estate.profitAct) !== null ? "RM " + money(estate.profitAct) + "'000 YTD" : 'Not entered'} chip={pv !== null ? pctText(pv) : null} tone={pv !== null && pv < 0 ? 'att' : 'good'} onPress={() => go('Profit')} />
+          <MenuRow icon="trending-up" title="Profit" sub={num(estate.profitAct) !== null ? rmMil(estate.profitAct) + ' YTD' : 'Not entered'} chip={pv !== null ? pctText(pv) : null} tone={pv !== null && pv < 0 ? 'att' : 'good'} onPress={() => go('Profit')} />
           <MenuRow icon="information-circle-outline" title="Estate details" sub="Name · region · SOU · delete" last onPress={() => go('Details')} />
         </Menu>
-        <CTA label="NEW SITE VISIT" icon="add" onPress={p.onNewVisit} />
+        <CTA label="NEW ETU FIELD VISIT" icon="walk" onPress={p.onNewEtu} />
       </ScrollView>
     );
   }
@@ -3904,8 +4083,8 @@ function EstateScreen(p) {
 
       {tab === 'Visits' && (
         <>
-          <PageHead icon="calendar-outline" title="Site visits" sub={estate.name + ' · ' + ev.length + ' visits'} />
-          <CTA label="NEW SITE VISIT" icon="add" onPress={p.onNewVisit} />
+          <PageHead icon="calendar-outline" title="Assessments & checks" sub={estate.name + ' · PMU, agronomist and 10-activity checks'} />
+          <CTA label="NEW 10-ACTIVITY CHECK" icon="add" color={C.rnd} onPress={p.onNewVisit} />
           {ev.length === 0 && <Empty title="No visits yet" text="Start your first site visit." />}
           {ev.map((v) => {
             const all = findings(v);
@@ -3974,21 +4153,24 @@ function EstateScreen(p) {
 
       {tab === 'Profit' && (
         <>
-          <PageHead icon="trending-up" title="Estate profit" sub={"RM'000 YTD"} />
+          <PageHead icon="trending-up" title="Estate profit" sub={estate.name + ' · YTD'} />
           <View style={[styles.profitBox, pv !== null && pv < 0 ? TONE_BG.att : TONE_BG.good]}>
             <T style={styles.meta}>{pv === null ? 'Profit YTD' : 'Variance vs budget'}</T>
             <Text style={[styles.profitBig, { color: pv !== null && pv < 0 ? C.att : C.good }]}>
-              {pv === null ? (num(estate.profitAct) !== null ? 'RM ' + money(estate.profitAct) + 'k' : '-') : pctText(pv)}
+              {pv === null ? rmMil(estate.profitAct) : pctText(pv)}
             </Text>
-            {pv !== null && <T style={styles.meta}>{'RM ' + money(num(estate.profitAct) - num(estate.profitBgt)) + "'000 vs budget"}</T>}
+            {pv !== null && <T style={styles.meta}>{rmMil(estate.profitAct) + ' actual · ' + rmMil(num(estate.profitAct) - num(estate.profitBgt)) + ' vs budget'}</T>}
             {ey && num(estate.profitAct) !== null && (
               <T style={styles.meta}>Profit per mature ha: RM {money((num(estate.profitAct) * 1000) / ey.ha)}</T>
             )}
           </View>
           <Section icon="create-outline" title="Edit">
             <View style={styles.row2}>
-              <Field label="Actual" keyboardType="numeric" placeholder="0" value={estate.profitAct || ''} onChangeText={(t) => onChange({ ...estate, profitAct: t })} />
-              <Field label="Budget" keyboardType="numeric" placeholder="0" value={estate.profitBgt || ''} onChangeText={(t) => onChange({ ...estate, profitBgt: t })} />
+              <Field label="Actual (RM'000)" keyboardType="numeric" placeholder="0" value={estate.profitAct || ''} onChangeText={(t) => onChange({ ...estate, profitAct: t })} />
+              <Field label="Budget (RM'000)" keyboardType="numeric" placeholder="0" value={estate.profitBgt || ''} onChangeText={(t) => onChange({ ...estate, profitBgt: t })} />
+            </View>
+            <T style={styles.hint}>Type in RM'000, e.g. 16259 = RM 16.26 mil.</T>
+            <View>
             </View>
           </Section>
         </>
@@ -4017,6 +4199,842 @@ function EstateScreen(p) {
   );
 }
 
+// =====================================================
+// ETU FIELD VISIT: visits -> fields -> observations
+// (same flow as the ETU Field Visit web app, visit part only)
+// =====================================================
+const ESTAT = {
+  attention: { label: 'Attention Required', short: 'Attention', tone: 'att', icon: 'alert-circle' },
+  rnd: { label: 'R&D Remark', short: 'R&D', tone: 'rnd', icon: 'flask' },
+  monitor: { label: 'Monitor', short: 'Monitor', tone: 'mon', icon: 'eye' },
+  good: { label: 'Good Practices', short: 'Good', tone: 'good', icon: 'checkmark-circle' },
+};
+const ESTAT_ORDER = ['attention', 'rnd', 'monitor', 'good'];
+const ECATS = [
+  { k: 'Pest & Disease', ic: 'bug', c: '#B4533C' },
+  { k: 'Palm Stand / Abnormal Palm', ic: 'leaf', c: '#B0822A' },
+  { k: 'Field Upkeep / Weeding', ic: 'cut', c: '#4F8A3A' },
+  { k: 'Yield Making (EFB / MCP / Manuring)', ic: 'flask', c: '#6A9A2A' },
+  { k: 'Harvesting', ic: 'basket', c: '#C4651C' },
+  { k: 'Drainage / Water Mgmt.', ic: 'water', c: '#2F7FC1' },
+  { k: 'Accessibility / Infra.', ic: 'map', c: '#8A6A45' },
+  { k: 'Field Practice', ic: 'clipboard', c: '#2F8A86' },
+  { k: 'Other', ic: 'ellipsis-horizontal', c: '#7A7A70' },
+];
+const catOf = (k) => ECATS.find((c) => c.k === k) || ECATS[ECATS.length - 1];
+const ACTION_BY = ['Estate', 'R&D', 'Agronomist', 'Region', 'Estate & R&D'];
+const UOMS = ['Ha', 'palms', 'points', 'm', 'km', 'units', '%'];
+
+// Standard wording: NTR – UTO Site Visit Summary (Oct 2026)
+// s=status c=category t=observation i=issue r=root cause a=action plan b=action by
+const WORD_LIB = [{"s": "attention", "c": "Pest & Disease", "t": "Historical Bagworm", "i": "Historical bagworm damage was observed on fronds, resulting in significant leaf defoliation that may reduce photosynthetic capacity and adversely affect palm growth and yield if left untreated.", "r": "This area was prone to bagworm infestations, primarily due to the movement of prime movers. The situation was further aggravated by the estate's proximity to neighbouringsmallholder estates, which facilitated the spread of bagworms across plantation boundaries and into the estate.", "a": "Continue regular bagworm census in all affected fields and monitor infestation levels, particularly along estate boundaries adjacent to neighboring smallholders' estate.\nCarry out targeted treatment using cypermethrin via airblastspraying in accordance with the recommended dosage and safety procedures.", "b": "Estate"}, {"s": "good", "c": "Field Practice", "t": "Canopy Management", "i": "Pruning activities were well maintained, with palms meeting the required pruning standard and canopy condition."}, {"s": "good", "c": "Field Practice", "t": "Strip spray", "i": "Strip spraying was well maintained, with minimal weed competition along the harvesting path and palm row."}, {"s": "good", "c": "Field Practice", "t": "Selective weeding", "i": "Selective spraying was well maintained, with woodies effectively controlled in the visited area."}, {"s": "good", "c": "Field Practice", "t": "Circle raking", "i": "Circle raking was well maintained, with palm circles clean and clear of debris to support loose fruit collection."}, {"s": "good", "c": "Field Practice", "t": "Path in good condition", "i": "Harvesting paths were well maintained and clear of obstruction, supporting field accessibility and crop evacuation."}, {"s": "good", "c": "Field Practice", "t": "Bunch formation", "i": "Good bunch formation was observed, indicating healthy palm growth and satisfactory crop development for the palm age."}, {"s": "attention", "c": "Yield Making (EFB / MCP / Manuring)", "t": "Fertilizer Placement & Application", "i": "Fertilizer application was observed; however, some palms were not applied with fertilizer, and fertilizer placement was noted to be inconsistent with ARM's and SOP's recommended application standards.", "r": "MTFA -The gearbox malfunctioned several days before, resulting in equipment downtime.\nIFM -The machine was operated until the evening, causing excessive heat in both the machine and its control valve. This resulted in a slight delay in fertilizer application compared to the normal.\nEstate want to expedite the 2nd half application as to prevent from further delay and other issues i.e. caking.", "a": "Follow up with the vendor to obtain the repair quotation as soon as possible.\nImplement the semi-mechanical application method for flat areas to improve application efficiency.\nApply fertilizer manually using wheelbarrows in terrace areas to ensure complete coverage and prevent missed inter-palm areas.\nMonitor fertilizer application progress to ensure all targeted palms receive the required fertilizer according to the recommended dosage by R&D.\nEstate will liaise with regional MUM Executive for implementation by using IFM as discussed on 21/10/2026.", "b": "Estate"}, {"s": "attention", "c": "Palm Stand / Abnormal Palm", "t": "Non-producing Palm", "i": "Several non-producing palms were observed in spotted areas, reducing the effective palm stand and potential FFB yield.", "r": "Inadequate early identification and follow-up monitoring of abnormal palms during field planting", "a": "Estate in progress to complete the poisoning or removing of confirmed unproductive palms in accordance with estate procedures and safety requirements by using driller, injector and backhoe\nConduct follow-up inspections to verify the status of treated palms and ensure proper removal of dead palms where required.", "b": "Estate"}, {"s": "good", "c": "Field Practice", "t": "Selective weeding within programme", "i": "Selective weeding was carried out within the programme, with woodies and VOPS adequately controlled in the field."}, {"s": "good", "c": "Field Practice", "t": "Road maintenance", "i": "Roads were well maintained, providing good field accessibility for harvesting and crop evacuation activities."}, {"s": "attention", "c": "Field Upkeep / Weeding", "t": "Selective Weeding", "i": "Delayed selective weeding was observed in spotted areas, indicating that spot weeding activities require further improvement.", "r": "Circle spraying was recently completed, while selective weeding is ongoing as per planned programme.", "a": "Prioritize areas with significant weed infestation to minimize competition for nutrients and maintain field accessibility.\nMonitor work progress daily and ensure timely completion according to the estate's upkeep programme.\nConduct follow-up field inspections to assess weeding productivity ,quality and arrange corrective spraying where necessary.", "b": "Estate"}, {"s": "good", "c": "Yield Making (EFB / MCP / Manuring)", "t": "MCP (Yield Making)", "i": "Moisture conservation pits (MCP) were observed in the field, supporting water retention and moisture conservation."}, {"s": "good", "c": "Field Practice", "t": "Strip spray", "i": "Strip weeding was well maintained, with minimal weed competition along the harvesting path and palm row."}, {"s": "attention", "c": "Field Upkeep / Weeding", "t": "NMS Spray", "i": "Poor NMS spray coverage particularly behind the palm areas, leaving weed growth that may hinder accessibility and harvesting.", "r": "The spraying programmewas initially delayed due to machine operator unavailability, followed by further delays caused by machinery breakdown.", "a": "Estate to conduct NMS spraying machine calibration to ensure the correct spray volume, pressure, and nozzle output for effective weed control.\nConduct regular field inspections to evaluate spraying effectiveness and carry out corrective spraying where necessary.", "b": "Estate"}, {"s": "attention", "c": "Yield Making (EFB / MCP / Manuring)", "t": "Bunch Formation", "i": "Low bunch formation was observed on several palms, which may reduce FFB production and overall yield performance.", "r": "Low bunch formation was attributed to the historical bagworm infestation, which caused leaf defoliation and reduced the palms' photosynthetic capacity. The affected palms are still in the recovery stage following pest control, and their productivity has yet to fully recover, resulting in lower bunch formation.\nLow rainfall received from January until April 2024 at average 104mm per month may affect low female inflorescence in 1st semester 2026.", "a": "Zero losses by ensuring all harvested FFB and loose fruits are fully collected, transported, and delivered to the mill.", "b": "Estate"}, {"s": "good", "c": "Field Practice", "t": "Circle spray", "i": "Circle spraying was recently completed, with palm circles clear of weeds to support loose fruit collection."}, {"s": "attention", "c": "Field Upkeep / Weeding", "t": "VOPS", "i": "Big VOPS were observed in selected areas, competing with palms for nutrients and indicating spot weeding requires improvement.", "r": "Ineffective spot weeding and inadequate follow-up monitoring resulted in VOPS regrowth and persistence in selected areas, leading to competition with palms for nutrients\n.Currently estate in programeat Scaborrodivision to eradicate/remove Vops.", "a": "Estate carry out VOPS poisoning by check-roll workers to clear the VOPS", "b": "Estate"}, {"s": "attention", "c": "Pest & Disease", "t": "Ganoderma", "i": "Ganoderma-infected palms were observed, resulting in vacant points and a reduced palm stand within the field.", "r": "Historical of Ganoderma for past year", "a": "Estate will carry out Ganoderma Census for this year as well as to carry out soil mounding for the unhealthy but productive palm", "b": "Estate"}, {"s": "attention", "c": "Palm Stand / Abnormal Palm", "t": "Abnormal Palm", "i": "Several abnormal palms were observed within the field, potentially affecting palm growth and field operations.", "r": "Inadequate early identification and follow-up monitoring of abnormal palms during field planting", "a": "Estate will carry out the removal of abnormal and unproductive palms", "b": "Estate"}, {"s": "attention", "c": "Palm Stand / Abnormal Palm", "t": "Etiolation", "i": "Several palms were observed to be etiolated, with elongated trunks and poor canopy development.", "r": "High SPH during field planting", "a": "Estate will carry out conduct census for etiolated palm and will do selective thinning after get confirmation by R&D", "b": "Estate"}, {"s": "rnd", "c": "Palm Stand / Abnormal Palm", "t": "Etiolation", "i": "Erect canopy growth due to high-density planting at 179 (latest SPH from PAU).", "r": "High SPH during field planting", "a": "Abnormal palms removal completed by using poisoning.", "b": "R&D"}, {"s": "rnd", "c": "Pest & Disease", "t": "Bagworm", "i": "Persistent bagworm infestation in >70% area for the past 3 years.", "r": "The spread of bagworm infestation from adjacent smallholder estates as well as cattle roaming in the estate.", "a": "Continuous monitoring (84ha) and (8ha)affected . Trunk injection and perimeter spraying in progress and target to zero affected at this field.", "b": "R&D"}, {"s": "rnd", "c": "Accessibility / Infra.", "t": "Flash Flood –Drain", "i": "Seasonal flooding is affecting 15ha of area.", "r": "Blocking drainage system from stakeholder village and the field under the main road drain make the flash flood happen .", "a": "Annual desilting of the collection drain and sub-soil fertilizer application", "b": "R&D"}, {"s": "good", "c": "Field Practice", "t": "General upkeep", "i": "General field upkeep was well maintained i.e. strip spray, selective weeding and canopy management, with satisfactory field conditions observed across the visited area."}, {"s": "attention", "c": "Harvesting", "t": "Crop Losses", "i": "Uncollected loose fruits were observed within palm circles in spotted areas, which have been 5 days delay after the last harvesting round (10 Oct 2026).", "r": "This primarily due to assisted harvesting gang start on 7,8,9 and 10th butdue to rain interuptionon 9 and 12th LFcollection activity also interuptedwith separate LF collection gang,thiscauses different timing of LF collected, however coupled with havingrain interference which slowed collection progress. For month of Oct 26 estate experience 5 days of rain during working hour with 245mm."}, {"s": "attention", "c": "Accessibility / Infra.", "t": "Path Damage", "i": "Damaged harvesting paths were observed at spotted areas within the fields. These conditions have significantly limited field access, reduced operational effectiveness, and hindered routine estate operations.", "r": "Damaged path due to soggy soil from frequent rain received. For month of Aug 26 estate experienced 10 days of rain interference, Sep 26 (15 days) & Oct 26 (16 days) withaccumulated rain received forthese 3 particular monthat 668mm.", "a": "Identifypatches of damaged path andperform repairusingimported lateritic soil from nearby area, to avoid damage feeder root.", "b": "Estate"}, {"s": "attention", "c": "Field Practice", "t": "Canopy Management", "i": "Delay pruning was observed in portion areas in the field, potentially effecting bunch accessibility.", "r": "Estate experienced shortage of harvesters for first half FY2026 due to repartrationof experienced 10 harvesters, which causing some task beingleft/delayed pruning. In month of May 26 and July 26 estate had received 13 new PMIwhich is still under training with low productivity."}, {"s": "attention", "c": "Accessibility / Infra.", "t": "Road Damage", "i": "Road damage was observed in certain portion, which may affect crop evacuation.", "r": "Damageroad due to requentmovement with heavy machineries coupled with frequent rain received. For month of Aug 26 estate experienced 10 days of rain interference, Sep 26 (15 days) & Oct 26 (16 days) withaccumulated rain received forthese 3 particular monthat 668mm.", "a": "Estate will channel out water on the damaged road and apply crusher run to theaffected patches. Estate will construct roadside pit to avoid water stagnant on the road. Initiate road grading for 1000M field road when weather is permissible.", "b": "Estate"}, {"s": "attention", "c": "Field Upkeep / Weeding", "t": "Selective Weeding", "i": "Minimal woodies was observed in spotted areas, indicating that spot weeding activities require further improvement", "r": "Selective was last done in May but due toweeds competitiveness cause vigorousgrowth ofwoodies certain portion.", "a": "Estate willarrange additional round of spot spray for spotted area to eradicate patches of missed out woodies.", "b": "Estate"}, {"s": "monitor", "c": "Pest & Disease", "t": "Historical Bagworm", "i": "Signs of historical bagworm damage were observed. Last treatment based on chemical issuance recorded on last Nov 2025. The census data given by estate the fields recorded below ATL."}, {"s": "rnd", "c": "Other", "t": "Yield Impacted by Maturity", "i": "The budget for the 1st year is relatively high, given that harvesting was only been carried out for 2 months, with 4 harvesting rounds per year, as maturity was only reached in Nov. 2025.", "r": "The budget crop was relatively high at 21.67 mt/ha and was not accurately adjusted and unachieveable for newly mature area.", "a": "The 2026 budget has been revised; however, it remains relatively high at 21.67 mt/ha. The estate is to ensure harvesting is conducted at a minimum of 2.5 rounds/month to achieve the targeted budget.", "b": "R&D"}, {"s": "rnd", "c": "Pest & Disease", "t": "Bagworm", "i": "A prolonged moderate to severe bagworm infestation has been observed since Jan 2025, with peak incidence recorded in Sept. 2025. The infestation has affected approximately 25% of the area, attributed to delayed treatment intervention.", "r": "Delayed treatment due to insufficient allocation of chemical cypermethrin forFY 2025 coupled withmultiple stages of bagworm lifecycle. Estate has torequest from R&D for additional chemical allocation.", "a": "Latest census and random field checks during the visit indicate a reduction in the infested area. Continue routine census monitoring, and if infestation exceeds the threshold level, proceed with trunk injection at 14-day intervals. The estate should remain vigilant, initiate census promptly upon detection of persistent symptoms, and commence treatment once pest populations surpass the economic threshold.", "b": "R&D"}, {"s": "rnd", "c": "Yield Making (EFB / MCP / Manuring)", "t": "High Male Inflorescence", "i": "Two consecutive moisture-deficit periods were recorded in Mar–Apr 2023 and Jan–Feb 2024. These dry spells resulted in increased male inflorescence production and higher rates of floral abortion, leading to reduced bunch formation after lag periods of approximately 8–11 months and 19–25 months. The impact was further exacerbated by the predominance of lateritic soils across most of the area, which are highly prone to moisture stress.", "r": "Moisture deficit due to prolonged dry period on, FY2023-6 consecutives month received rainfall below <150mm(Jan-July 2023). FY2024-3 Months received rainfall below <150MM(Jan,Feb& Apr).", "a": "Pruned fronds should be applied together with EFB at a rate of 40 t/ha within the existing MCP. The current interrow ground cover, whether legumes or grasses, should be preserved, with maintenance restricted to the palm circles only.", "b": "R&D"}, {"s": "good", "c": "Field Practice", "t": "Road condition", "i": "Road maintained in good condition, providing efficient access for field operations."}, {"s": "attention", "c": "Pest & Disease", "t": "Bagworm", "i": "Bagworm infestation was observed; resulting in significant leaf defoliation that may reduce photosynthetic capacity and adversely affect palm growth and yield if left untreated.", "r": "Bagworm infestation started from neighbouringsmallholder, main spreading agent i.ecattle & monkey intrusion and estate vehicle.", "a": "Estate will continue routine census monitoring, and if infestation exceeds the threshold level, proceed with trunk injection at 14-day intervals. The estate should remain vigilant, initiate census promptly upon detection of persistent symptoms, and commence treatment once pest populations surpass the economic threshold.", "b": "Estate"}, {"s": "attention", "c": "Field Practice", "t": "Delay Pruning", "i": "Delay pruning was observed in selected palms in the field, potentially effecting bunch accessibility.", "r": "Estate experienced shortage of harvesters for first half FY2026 due to repartrationof experienced 10 harvesters, which causing some task beingleft/delayed pruning. In month of May 26 and July 26 estate had received 13 new PMIwhich is still under training with low productivity.", "a": "Estate to deploy additional pruner (SPG) frommain division to assist in speeding up pruning completion for the field.\nAllocated individual task and to implement progressive pruning.", "b": "Estate"}, {"s": "monitor", "c": "Pest & Disease", "t": "Bagworm", "i": "A prolonged moderate to severe bagworm infestation has been observed since Jan 2025, with peak incidence recorded in Nov 2025. The infestation has affected approximately 20% of the area, attributed to delayed treatment intervention.", "r": "Estate has established 3 treatment teams to carry out trunk injection. Additional round of treatment required due to multistagesof bagworm cycle. To speed up the treatment estate had appoint contracttreatment teamto ensure the treatment completed timely.", "a": "Continue regular bagworm census in all affected fields and monitor infestation levels, particularly along estate boundaries adjacent to neighboring smallholders' estate.\nCarry out targeted treatment using cypermethrin via airblastspraying in accordance with the recommended dosage and safety procedures.", "b": "Estate"}, {"s": "attention", "c": "Yield Making (EFB / MCP / Manuring)", "t": "High Male Inflorescence", "i": "Two consecutive moisture-deficit periods were recorded in Mar–Apr 2023 and Jan–Feb 2024. These dry spells resulted in increased male inflorescence production and higher rates of floral abortion, leading to reduced bunch formation after lag periods of approximately 8–11 months and 19–25 months. The impact was further exacerbated by the predominance of lateritic soils across most of the area, which are highly prone to moisture stress.", "r": "Moisture deficit due to prolonged dry period on, FY2023-6 consecutives month received rainfall below <150mm(Jan-July 2023). FY2024-3 Months received rainfall below <150MM(Jan,Feb& Apr).", "a": "Pruned fronds should be applied together with EFB at a rate of 40 t/ha within the existing MCP. The current interrow ground cover, whether legumes or grasses, should be preserved, with maintenance restricted to the palm circles only.", "b": "R&D"}, {"s": "monitor", "c": "Accessibility / Infra.", "t": "Narrow terraces", "i": "Half of the area (37 ha) consists of narrow terraces, which are impeding accessibility.", "r": "Narrow terrace constructed due to steep terrace slope between 20-25 degree. Limited accessibility due to collapsed terrace at few points."}, {"s": "attention", "c": "Field Upkeep / Weeding", "t": "Selective Spray", "i": "Delayed selective spraying was observed in spotted areas, indicating that spot weeding requires further improvement.", "r": "The areas were on terrace lips in open areas. This causes vigorous growth of woodies.", "a": "Estate will conduct selective spray, however some vegetation need to be maintain to avoid soil erosion near terrace lips.", "b": "Estate"}, {"s": "attention", "c": "Pest & Disease", "t": "Ganoderma", "i": "Ganoderma-infected palms were observed in certain areas, which may lead to palm mortality and loss of productive stand.", "r": "Latest Ganoderma census at 5% infestation.", "a": "To carry out proper census, identify and mark the Ganoderma infected palms.\nEstate had budgeted allocation for Ganoderma census and treatmentfor FY 2027.", "b": "Estate"}, {"s": "good", "c": "Field Practice", "t": "Canopy Management", "i": "Pruning is in progress, with 90% of the field completed. Frond snapping was observed on several palms, which may affect canopy and bunch development."}, {"s": "good", "c": "Palm Stand / Abnormal Palm", "t": "Thinning", "i": "Thinning has been carried out, reducing the stand from 160 SPH (original) to 144 SPH (current)."}, {"s": "rnd", "c": "Palm Stand / Abnormal Palm", "t": "Leaning Palm & Etiolation", "i": "Small and elongated ABW (7.7kg) due to canopy etiolation (SPH 171) especially among the leaning palms planted on Kranjiseries with thick organic horizon (29.35ha).", "r": "Soil series Kranji–leaning palm is potentially associated with inadequate root anchorage under soft, saturated soil conditions, compounded by prolonged waterlogging and possible soil subsidence due to drainage.", "a": "To carry out soil mounding for the leaning palms concurrent with special (selective) thinning procedure in the affected area (refer AFR report 2025).", "b": "R&D"}, {"s": "monitor", "c": "Pest & Disease", "t": "Historical Bagworm", "i": "Signs of historical bagworm damage were observed. The census data given by estate the fields recorded below ATL."}, {"s": "good", "c": "Field Practice", "t": "Strip spray", "i": "Strip spray was well maintained, with minimal weed competition along the harvesting path and palm row."}, {"s": "good", "c": "Drainage / Water Mgmt.", "t": "Field drain desilting", "i": "Field drains were desilted by the estate, supporting effective water flow and drainage in the field."}, {"s": "good", "c": "Field Practice", "t": "Piezometer installed", "i": "A piezometer was installed and functioning in the field to support water level monitoring and management."}, {"s": "rnd", "c": "Drainage / Water Mgmt.", "t": "Flooding", "i": "Prolonged flooding in 42% (29.86ha) of area during raining season. Zip- planting area.", "r": "Desiltingfield drain was carried out previously 50% of the area, leads to prolonged water stagnant, especially during the monsoon season especially at low lying area."}, {"s": "attention", "c": "Pest & Disease", "t": "Rat Damage", "i": "Rat damage was observed on several palms within the field, which may have affected optimal bunch formation.", "r": "First baiting completed in June 2026. Second round application planned in October 2026. Field adjacent to local village and smallholder.", "a": "Carry out second campaign in October FY 2026 –3 baits per palm..", "b": "Estate"}, {"s": "good", "c": "Field Practice", "t": "Selective weeding", "i": "Selective weeding was well maintained, with woodies effectively controlled in the visited area."}, {"s": "good", "c": "Drainage / Water Mgmt.", "t": "Drain desilting", "i": "Field drain desilting was observed, supporting effective water flow and drainage in the field."}, {"s": "attention", "c": "Yield Making (EFB / MCP / Manuring)", "t": "Malformed Bunches", "i": "Bunch formation was generally good for the palm age, but malformed bunches were found on several palms, which may reduce FFB production and yield.", "r": "Reduced pollen availability may lead to inadequate pollination, poor fruit set and malformed bunches, potentially due to rat infestationon male inflorescences.", "a": "Carry out census at affected area and secondround of rat baiting in October 2026", "b": "Estate"}, {"s": "attention", "c": "Pest & Disease", "t": "Rat Damage", "i": "Rat damage was observed in the field, which may lead to crop loss and reduced FFB yield if left uncontrolled.", "r": "Field 2020B located adjacent to smallholder and local village. First baiting completed in June 2026. Second round application planned in October 2026.", "a": "Carry out secondbaiting in October 2026", "b": "Estate"}, {"s": "attention", "c": "Palm Stand / Abnormal Palm", "t": "Uneven Palm Growth", "i": "Uneven palm growth was observed, with stunted palms in high water level areas, which may affect the palm stand and yield potential.", "r": "Prolonged water stagnant at low-lying area with inadequate portable water pump capacity to pump out water.", "a": "Propose electrical water pump to be installed at 2017A –project approved and at tender stage. Connect round culvert to channel out water to low lying area.", "b": "Estate"}, {"s": "attention", "c": "Field Upkeep / Weeding", "t": "Circle Raking", "i": "Delayed circle raking was observed in spotted areas, indicating that raking activities require further improvement.", "r": "Flood prone area over 15% of 2017A (low lying area) -disrupt circle accessibility during monsoon season.", "a": "Lowering water level at affected area and plan for circle raking once ground condition permit access.", "b": "Estate"}, {"s": "attention", "c": "Drainage / Water Mgmt.", "t": "Silted Drain", "i": "Silted drains at spotted areas were observed, which may impede water flow and affect water management in the field.", "r": "Occurs atlow-lying area portion, resulting in water accumulation. Fluctuating water levels accelerate silt deposition in field drains, requiring more frequent desilting compared to areas on higher ground.", "a": "Increase desilting frequency of field drains to maintain effective water flow, prioritisinglow-lying and silt-prone areas.", "b": "Estate"}, {"s": "rnd", "c": "Harvesting", "t": "Crop Recovery", "i": "Uncollected and rotten bunch in 30% of area.", "r": "Removal of undeveloped/malform rotten bunches on palm.", "a": "To improve undeveloped bunches on palm follow up by circle raking .", "b": "R&D"}, {"s": "rnd", "c": "Drainage / Water Mgmt.", "t": "Flooding", "i": "Flooding in 18% of the area next to the DID canal.", "r": "Low lying area followed by heavy rainfall received in Sept, 207 mmwithin 12 days and Oct, 203mm within 8 days.", "a": "Newdiesel engine have been installed at the nearest outlet in Jan 2026. Desilting drain to carry out twice a year frequncy", "b": "R&D"}, {"s": "rnd", "c": "Pest & Disease", "t": "Old Rat Damage", "i": "High number of old rat damage observed in 20% area (>70% fruitlets nibbled).", "r": "First round completed in June 2026. Second campaign is currently in progress and will be completed in Oct 26.", "a": "Very minimal fresh damage observed. Rate population under control.", "b": "R&D"}, {"s": "rnd", "c": "Field Practice", "t": "Over Pruning", "i": "Over-pruned palms were observed in 30% of the area.", "r": "To ease mchanicalfertiliserapplication at 2022B using MTFA –accessibility.", "a": "To improve frond retention standard by keeping 2-3 fronds below the lowest bunch.", "b": "R&D"}, {"s": "attention", "c": "Field Upkeep / Weeding", "t": "Circle Raking", "i": "Delay circle raking at spotted areas was observed in the field; palm circles to be monitored to support loose fruit collection.", "r": "Trash resulted from removal of undeveloped/malform rotten bunches on palm.", "a": "To deploy one round of circle raking in FY2026", "b": "Estate"}, {"s": "attention", "c": "Yield Making (EFB / MCP / Manuring)", "t": "Malformed Bunches", "i": "Malformed bunches were observed on several palms, which may reduce FFB production and overall yield performance.", "r": "Rat infestation on the male inflorescece as observed from the old rat damaged to malform bunches.", "a": "To carry out second campaign of rat baiting by Oct26.", "b": "Estate"}, {"s": "monitor", "c": "Pest & Disease", "t": "Bagworm", "i": "Bagworm infestation was last treated on 7 Oct 2026; Latest census data given by the estate recorded below ATL.", "a": "Latest census and random field checks during the visit indicate a reduction in the infested area. Continue routine census monitoring, and if infestation exceeds the threshold level, proceed with trunk injection at 14-day intervals. The estate should remain vigilant, initiate census promptly upon detection of persistent symptoms, and commence treatment once pest populations surpass the economic threshold.", "b": "R&D"}, {"s": "good", "c": "Palm Stand / Abnormal Palm", "t": "Palm Supply (Flood)", "i": "3,131 palms were supplied in 2024 @ 26% due to flooding; growth of the supplied palms is to be monitored."}, {"s": "good", "c": "Field Practice", "t": "Upkeep (well maintained)", "i": "General field upkeep was well maintained, with satisfactory field conditions observed across the visited area."}, {"s": "good", "c": "Field Practice", "t": "Field & collection drain", "i": "Field and collection drains were well maintained, supporting effective water flow and drainage in the field."}];
+
+function newObs() {
+  return {
+    id: newId(), status: 'attention', category: 'Pest & Disease', title: '', affectedHa: '',
+    issue: '', root: '', photos: [], actionBy: 'Estate', due: '', action: '', target: '', uom: 'Ha', remark: '',
+  };
+}
+
+function etuCounts(v) {
+  const c = { attention: 0, rnd: 0, monitor: 0, good: 0, photos: 0, actions: 0 };
+  (v.fields || []).forEach((f) =>
+    (f.obs || []).forEach((o) => {
+      c[o.status] = (c[o.status] || 0) + 1;
+      c.photos += (o.photos || []).length;
+      if (o.status !== 'good' && (o.action || '').trim()) c.actions++;
+    })
+  );
+  return c;
+}
+
+// Observations with an action plan become follow-ups (Follow-ups pages)
+function syncEtuActions(v, actions) {
+  const key = 'etu-' + v.id + '-';
+  const old = {};
+  actions.filter((a) => a.id.startsWith(key)).forEach((a) => (old[a.id] = a));
+  const keep = actions.filter((a) => !a.id.startsWith(key));
+  const add = [];
+  (v.fields || []).forEach((f) =>
+    (f.obs || []).forEach((o) => {
+      if (o.status === 'good' || !(o.action || '').trim()) return;
+      const id = key + o.id;
+      const prev = old[id] || {};
+      add.push({
+        id: id, estateId: v.estateId, visitId: null, fieldId: f.fieldId || null,
+        actId: activityFor(o.category + ' ' + o.title),
+        text: (f.fieldId ? '' : 'Field ' + f.code + ' · ') + (o.title || o.category) + ': ' + firstLine(o.action, 110),
+        pic: o.actionBy || 'Estate', due: o.due || '', status: prev.status || 'open', doneAt: prev.doneAt || null,
+        createdAt: prev.createdAt || v.date || today(),
+      });
+    })
+  );
+  return add.concat(keep);
+}
+
+function etuReport(v, estate) {
+  const c = etuCounts(v);
+  const L = [
+    'ETU FIELD VISIT – ' + (estate ? estate.name : '') + ' Estate',
+    [estate && estate.region, estate && estate.sou].filter(Boolean).join(' · '),
+    showDate(v.date) + (v.visitedBy ? ' · Visited by ' + v.visitedBy : ''),
+    'Fields: ' + ((v.fields || []).map((f) => f.code).join(', ') || '-'),
+    'Attention ' + c.attention + ' | R&D ' + c.rnd + ' | Monitor ' + c.monitor + ' | Good ' + c.good,
+  ];
+  const dot = { attention: '🔴', rnd: '🔵', monitor: '🟠', good: '🟢' };
+  (v.fields || []).forEach((f) => {
+    L.push('', 'FIELD ' + f.code);
+    ESTAT_ORDER.forEach((st) =>
+      (f.obs || [])
+        .filter((o) => o.status === st)
+        .forEach((o) => {
+          L.push(dot[st] + ' ' + ESTAT[st].short + ' – ' + o.category + (o.title ? ': ' + o.title : '') + (o.affectedHa ? ' (' + o.affectedHa + ' ha)' : ''));
+          if (o.issue) L.push('Issue: ' + o.issue);
+          if (o.root) L.push('Root cause: ' + o.root);
+          if (st !== 'good' && o.action) {
+            L.push('Action (' + (o.actionBy || 'Estate') + (o.due ? ', by ' + showDate(o.due) : '') + '): ' + o.action);
+          }
+          if (st !== 'good' && o.remark) L.push('Remark: ' + o.remark);
+          if ((o.photos || []).length) L.push('Photos: ' + o.photos.length + ' (in the app)');
+        })
+    );
+  });
+  if ((v.notes || '').trim()) L.push('', 'ADDITIONAL ISSUES', v.notes.trim());
+  return L.filter((x) => x !== '').join('\n').replace(/\n(FIELD|ADDITIONAL)/g, '\n\n$1');
+}
+
+// small coloured topic icon for a category
+function CatIcon({ cat, size }) {
+  const c = catOf(cat);
+  const s = size || 38;
+  return (
+    <View style={[styles.catIc, { width: s, height: s, backgroundColor: c.c + '22' }]}>
+      <Ionicons name={c.ic} size={Math.round(s * 0.55)} color={c.c} />
+    </View>
+  );
+}
+
+function StatusChip({ st }) {
+  const s = ESTAT[st] || ESTAT.good;
+  return <Chip tone={s.tone} dot label={s.label} />;
+}
+
+// ---------- 1. visit list ----------
+function EtuListScreen(p) {
+  const { etu, estates } = p;
+  const [est, setEst] = useState(p.estateId || 'all');
+  const list = etu
+    .filter((v) => est === 'all' || v.estateId === est)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+  const nFields = list.reduce((n, v) => n + (v.fields || []).length, 0);
+  const nAtt = list.reduce((n, v) => n + etuCounts(v).attention, 0);
+  const visited = [...new Set(etu.map((v) => v.estateId))];
+  const ename = (id) => (estates.find((e) => e.id === id) || {}).name || 'Estate';
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <Hero
+        eyebrow="ETU field visit"
+        title={list.length ? visited.length + ' estate' + (visited.length === 1 ? '' : 's') + ' visited' : 'Ready for your first visit'}
+        sub={list.length ? 'Latest visit ' + showDate(list[0].date) : 'Record issues, photos and action plans by field'}
+        stats={[
+          { ic: 'list', v: String(list.length), l: 'Visits' },
+          { ic: 'grid', v: String(nFields), l: 'Fields' },
+          { ic: 'alert-circle', v: String(nAtt), l: 'Attention', tone: nAtt ? 'att' : 'good' },
+        ]}
+      />
+      <CTA label="NEW FIELD VISIT" icon="add" onPress={() => p.onNew(est !== 'all' ? est : estates.length === 1 ? estates[0].id : null)} />
+      {visited.length > 1 && (
+        <FilterChips
+          value={est}
+          onChange={setEst}
+          options={[{ key: 'all', label: 'All', n: etu.length }].concat(
+            visited.map((id) => ({ key: id, label: ename(id), n: etu.filter((v) => v.estateId === id).length }))
+          )}
+        />
+      )}
+      {list.length === 0 && (
+        <Empty title="No visits yet" text="Tap NEW FIELD VISIT at the estate. Add each field you assess, record observations with photos, then share the report." />
+      )}
+      {list.map((v) => {
+        const c = etuCounts(v);
+        const e = estates.find((x) => x.id === v.estateId) || {};
+        return (
+          <Pressable key={v.id} style={styles.card} onPress={() => p.onOpen(v.id)}>
+            <DateBox date={v.date} />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.rcardTitle} numberOfLines={1}>{(e.name || 'No estate') + ' Estate'}</Text>
+              <T style={styles.meta} numberOfLines={1}>{[e.region, e.sou, v.visitedBy].filter(Boolean).join(' · ') || 'Tap to add details'}</T>
+              <View style={styles.chips}>
+                <Chip tone={v.status === 'done' ? 'good' : 'rnd'} dot label={v.status === 'done' ? 'Completed' : 'In progress'} />
+                <Chip tone="muted" label={(v.fields || []).length + ' fields'} />
+                {c.attention > 0 && <Chip tone="att" dot label={c.attention + ' attention'} />}
+                {c.rnd > 0 && <Chip tone="rnd" dot label={c.rnd + ' R&D'} />}
+                {c.actions > 0 && <Chip tone="muted" label={c.actions + ' actions'} />}
+                {c.photos > 0 && <Chip tone="muted" label={c.photos + ' photos'} />}
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.muted} />
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
+// ---------- 3. one field in the visit ----------
+function EtuFieldScreen(p) {
+  const { visit, vf, estates } = p;
+  const [confirm, setConfirm] = useState(false);
+  const e = estates.find((x) => x.id === visit.estateId);
+  const obs = vf.obs || [];
+  const att = obs.filter((o) => o.status === 'attention').length;
+  const nph = obs.reduce((n, o) => n + (o.photos || []).length, 0);
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <Hero
+        mini
+        eyebrow={'ETU field visit · ' + (e ? e.name : '')}
+        title={'Field ' + vf.code}
+        sub={showDate(visit.date)}
+        stats={[
+          { ic: 'eye', v: String(obs.length), l: 'Remarks' },
+          { ic: 'alert-circle', v: String(att), l: 'Attention', tone: att ? 'att' : 'good' },
+          { ic: 'camera', v: String(nph), l: 'Photos' },
+        ]}
+      />
+      <Section
+        icon="eye-outline"
+        title={'Observations · ' + obs.length}
+        right={
+          <Pressable style={styles.smallBtn} onPress={p.onAddObs}>
+            <Ionicons name="add" size={16} color="#fff" />
+            <T style={styles.smallBtnText}>Add</T>
+          </Pressable>
+        }>
+        {obs.length === 0 && <T style={styles.hint}>Record issues and good practices seen in this field. Issues get an action plan.</T>}
+        {ESTAT_ORDER.flatMap((st) => obs.filter((o) => o.status === st)).map((o) => (
+          <Pressable key={o.id} style={styles.ocard} onPress={() => p.onOpenObs(o.id)}>
+            <CatIcon cat={o.category} />
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+              <T style={styles.kvLabel} numberOfLines={1}>{o.category}</T>
+              <T style={styles.bold}>{o.title || 'Untitled'}</T>
+              <View style={[styles.chips, { marginTop: 0 }]}>
+                <StatusChip st={o.status} />
+                {o.affectedHa ? <Chip tone="muted" label={o.affectedHa + ' ha'} /> : null}
+              </View>
+              {o.issue ? <T style={styles.meta} numberOfLines={2}>{o.issue}</T> : null}
+              {(o.photos || []).length > 0 && (
+                <View style={styles.photoRow}>
+                  {o.photos.slice(0, 4).map((u, i) => (
+                    <Image key={u + i} source={{ uri: u }} style={styles.thumbS} />
+                  ))}
+                </View>
+              )}
+            </View>
+          </Pressable>
+        ))}
+      </Section>
+      <DeleteBox label={'Remove field ' + vf.code + ' and its observations from this visit?'} button="Remove field" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
+    </ScrollView>
+  );
+}
+
+// ---------- 4. one observation ----------
+function EtuObsScreen(p) {
+  const { obs, vf } = p;
+  const [showLib, setShowLib] = useState(false);
+  const [confirm, setConfirm] = useState(false);
+  const set = (k, v) => p.onChange({ ...obs, [k]: v });
+  const setMany = (o) => p.onChange({ ...obs, ...o });
+  const titles = [...new Set(WORD_LIB.filter((x) => x.c === obs.category).map((x) => x.t))].slice(0, 10);
+  const q = norm(obs.title);
+  const lib = WORD_LIB.map((x, ix) => ({ x: x, ix: ix, sc: (x.c === obs.category ? 2 : 0) + (x.s === obs.status ? 1 : 0) + (q && norm(x.t).includes(q) ? 4 : 0) }))
+    .filter((y) => y.sc >= 2)
+    .sort((a, b) => b.sc - a.sc)
+    .slice(0, 4);
+  const useLib = (x) => {
+    const o = { title: obs.title || x.t, issue: x.i };
+    if (x.r) o.root = x.r;
+    if (obs.status !== 'good') {
+      if (x.a) o.action = x.a;
+      if (x.b) o.actionBy = x.b;
+    }
+    setMany(o);
+    setShowLib(false);
+  };
+  return (
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <PageHead icon="eye-outline" title={obs.title || 'Observation'} sub={'Field ' + vf.code + ' · ' + obs.category} />
+
+      <Section icon="flag-outline" title="Status">
+        <View style={styles.stGrid}>
+          {ESTAT_ORDER.map((k) => {
+            const on = obs.status === k;
+            const fg = TONE_FG[ESTAT[k].tone];
+            return (
+              <Pressable key={k} style={[styles.stCell, on && { backgroundColor: fg, borderColor: fg }]} onPress={() => set('status', k)}>
+                <Ionicons name={ESTAT[k].icon} size={16} color={on ? '#fff' : fg} />
+                <T style={[styles.stText, { color: on ? '#fff' : fg }]}>{ESTAT[k].label}</T>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Section>
+
+      <Section icon="apps-outline" title="Issue category">
+        <View style={styles.catGrid}>
+          {ECATS.map((c) => {
+            const on = obs.category === c.k;
+            return (
+              <Pressable key={c.k} style={[styles.catBtn, on && { borderColor: c.c, backgroundColor: c.c + '18' }]} onPress={() => set('category', c.k)}>
+                <View style={[styles.catIc, { width: 30, height: 30, backgroundColor: on ? c.c : c.c + '22' }]}>
+                  <Ionicons name={c.ic} size={17} color={on ? '#fff' : c.c} />
+                </View>
+                <T style={styles.catText} numberOfLines={2}>{c.k}</T>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Section>
+
+      <Section icon="create-outline" title="Observation">
+        <Field label="Observation" full value={obs.title} placeholder="e.g. Historical Bagworm" onChangeText={(t) => set('title', t)} />
+        {titles.length > 0 && (
+          <View style={[styles.chips, { marginTop: 0 }]}>
+            {titles.map((t) => (
+              <Pressable key={t} style={[styles.filterChip, obs.title === t && styles.filterChipOn]} onPress={() => set('title', t)}>
+                <T style={[styles.filterText, obs.title === t && { color: '#fff' }]}>{t}</T>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        <Field label="Affected ha (optional)" full keyboardType="numeric" value={obs.affectedHa} onChangeText={(t) => set('affectedHa', t)} />
+        <Field label="Issue highlighted" full multiline value={obs.issue} placeholder="What was observed and its effect" onChangeText={(t) => set('issue', t)} />
+        <Pressable style={styles.ghostBtn} onPress={() => setShowLib(!showLib)}>
+          <Ionicons name="library-outline" size={16} color={C.accent} />
+          <T style={styles.link}>{showLib ? 'Hide standard wording' : 'Use standard wording'}</T>
+        </Pressable>
+        {showLib && (
+          <View style={{ gap: 6 }}>
+            <T style={styles.kvLabel}>NTR – UTO wording library · tap to use</T>
+            {lib.length === 0 && <T style={styles.hint}>No wording for this category yet.</T>}
+            {lib.map(({ x, ix }) => (
+              <Pressable key={ix} style={styles.libItem} onPress={() => useLib(x)}>
+                <T style={[styles.bold, { color: C.accent }]}>{x.t}</T>
+                <T style={styles.meta} numberOfLines={3}>{x.i}</T>
+                <T style={styles.hint}>{ESTAT[x.s].short}{x.a ? ' · + root cause & action plan' : x.r ? ' · + root cause' : ''}</T>
+              </Pressable>
+            ))}
+          </View>
+        )}
+        <Field label="Root cause (estate)" full multiline value={obs.root} placeholder="One point per line" onChangeText={(t) => set('root', t)} />
+      </Section>
+
+      <Section icon="camera-outline" title="Field evidence">
+        <PhotoStrip photos={obs.photos} onChange={(l) => set('photos', l)} />
+      </Section>
+
+      {obs.status !== 'good' && (
+        <Section icon="locate-outline" title="Estate action plan">
+          <T style={styles.label}>Action by</T>
+          <View style={[styles.chips, { marginTop: 0 }]}>
+            {ACTION_BY.map((b) => (
+              <Pressable key={b} style={[styles.filterChip, obs.actionBy === b && styles.filterChipOn]} onPress={() => set('actionBy', b)}>
+                <T style={[styles.filterText, obs.actionBy === b && { color: '#fff' }]}>{b}</T>
+              </Pressable>
+            ))}
+          </View>
+          <View style={styles.row2}>
+            <DateField label="Target completion" value={obs.due} onChange={(d) => set('due', d)} />
+          </View>
+          <Field label="Action plan" full multiline value={obs.action} placeholder="One action per line" onChangeText={(t) => set('action', t)} />
+          <View style={styles.row2}>
+            <Field label="Target" keyboardType="numeric" value={obs.target} onChangeText={(t) => set('target', t)} />
+            <View style={styles.field}>
+              <T style={styles.label}>Unit</T>
+              <View style={[styles.chips, { marginTop: 0 }]}>
+                {UOMS.slice(0, 4).map((u) => (
+                  <Pressable key={u} style={[styles.filterChip, obs.uom === u && styles.filterChipOn]} onPress={() => set('uom', u)}>
+                    <T style={[styles.filterText, obs.uom === u && { color: '#fff' }]}>{u}</T>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </View>
+          <Field label="Remarks & recommendation" full multiline value={obs.remark} onChangeText={(t) => set('remark', t)} />
+          <T style={styles.hint}>An action plan here also appears in the estate's Follow-ups, with PIC = Action by.</T>
+        </Section>
+      )}
+
+      <DeleteBox label="Remove this observation?" button="Remove observation" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// BOTTOM NAVIGATION (always visible)
+// =====================================================
+const NAV = [
+  { k: 'home', label: 'Home', ic: 'home' },
+  { k: 'estates', label: 'Estates', ic: 'business' },
+  { k: 'etu', label: 'Visits', ic: 'walk' },
+  { k: 'alerts', label: 'Priorities', ic: 'alert-circle' },
+  { k: 'more', label: 'More', ic: 'menu' },
+];
+
+function BottomNav({ active, onGo, badge }) {
+  return (
+    <View style={styles.nav}>
+      {NAV.map((n) => {
+        const on = n.k === active;
+        return (
+          <Pressable key={n.k} style={styles.navBtn} onPress={() => onGo(n.k)}>
+            {on && <View style={styles.navBar} />}
+            <View>
+              <Ionicons name={on ? n.ic : n.ic + '-outline'} size={24} color={on ? C.accent : C.muted} />
+              {n.k === 'alerts' && badge > 0 ? (
+                <View style={styles.navBadge}>
+                  <T style={styles.badgeText}>{badge > 99 ? '99+' : badge}</T>
+                </View>
+              ) : null}
+            </View>
+            <T style={[styles.navText, on && { color: C.accent }]}>{n.label}</T>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+// =====================================================
+// MORE: profit, upload, settings
+// =====================================================
+function MoreScreen(p) {
+  const { estates, fields, visits, actions } = p;
+  const etu = p.etu || [];
+  const total = estates.reduce((s, e) => s + (num(e.profitAct) || 0), 0);
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <PageHead icon="menu-outline" title="More" sub="Reports, data and settings" />
+      <Menu>
+        <MenuRow icon="bar-chart-outline" title="Profit by estate" sub={total ? rmMil(total) + ' YTD' : 'No profit data'} tone="gold" onPress={() => p.onGo('profit')} />
+        <MenuRow icon="cloud-upload-outline" title="Upload estate data" sub="Excel workbook, CSV or paste" tone="rnd" onPress={() => p.onGo('upload')} />
+        <MenuRow icon="options-outline" title="Settings" sub="Trigger limits · clear data" last onPress={() => p.onGo('settings')} />
+      </Menu>
+      <Section icon="phone-portrait-outline" title="On this phone">
+        <View style={styles.kv}>
+          <KV label="Estates" value={String(estates.length)} />
+          <KV label="Fields" value={String(fields.length)} />
+          <KV label="ETU visits" value={String(etu.length)} />
+          <KV label="Follow-ups" value={String(actions.length)} />
+          <KV label="Assessments" value={String(visits.length)} />
+          <KV label="Internet needed" value="No, works offline" />
+        </View>
+        <T style={styles.hint}>Everything is saved on this phone as you type. No internet is needed in the field.</T>
+      </Section>
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// HOME DASHBOARD
+// =====================================================
+function Kpi({ v, label, tone, icon, onPress }) {
+  return (
+    <Pressable style={[styles.kpi, { borderLeftColor: TONE_FG[tone] }]} onPress={onPress}>
+      <View style={styles.rowBetween}>
+        <Text style={[styles.kpiVal, { color: TONE_FG[tone] }]}>{v}</Text>
+        <Ionicons name={icon} size={20} color={TONE_FG[tone]} />
+      </View>
+      <T style={styles.kpiLbl}>{label}</T>
+    </Pressable>
+  );
+}
+
+function HomeScreen(p) {
+  const { estates, fields, actions } = p;
+  const etu = p.etu || [];
+  const pri = fieldPriorities(p);
+  const open = actions.filter((a) => a.status !== 'done');
+  const overdue = open.filter(isOverdue);
+  const tLost = pri.reduce((s, x) => s + x.tLost, 0);
+  const month = today().slice(0, 7);
+  const doneMonth = etu.filter((v) => v.status === 'done' && (v.date || '').slice(0, 7) === month).length;
+  const drafts = etu.filter((v) => v.status !== 'done');
+  const recent = [...etu].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 3);
+  const withProfit = estates.filter((e) => num(e.profitAct) !== null);
+  const total = withProfit.reduce((s, e) => s + (num(e.profitAct) || 0), 0);
+  const maxP = withProfit.reduce((m, e) => Math.max(m, num(e.profitAct) || 0), 1);
+  const d = new Date();
+  const hi = d.getHours() < 12 ? 'Good morning' : d.getHours() < 18 ? 'Good afternoon' : 'Good evening';
+
+  if (estates.length === 0) {
+    return (
+      <ScrollView contentContainerStyle={styles.page}>
+        <Hero eyebrow="ETU field visit" title="Welcome" sub="Start by uploading your estate workbook" stats={[{ ic: 'business', v: '0', l: 'Estates' }, { ic: 'grid', v: '0', l: 'Fields' }, { ic: 'walk', v: '0', l: 'Visits' }]} />
+        <CTA label="UPLOAD ESTATE DATA" icon="cloud-upload" color={C.rnd} onPress={() => p.onGo('upload')} />
+        <CTA label="LOAD EXAMPLE DATA" icon="download-outline" color={C.muted} onPress={p.onExample} />
+      </ScrollView>
+    );
+  }
+
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      {/* summary */}
+      <View style={styles.sumCard}>
+        <T style={styles.sumEyebrow}>{hi + ' · ' + showDate(today())}</T>
+        <View style={styles.sumMain}>
+          <Text style={[styles.sumBig, { color: pri.length ? C.att : C.good }]}>{pri.length}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sumTitle}>{pri.length ? 'fields need attention' : 'fields need attention. All in order.'}</Text>
+            <T style={styles.meta}>
+              {Math.round(tLost).toLocaleString('en-MY')} t below budget YTD · {fields.length} fields · {estates.length} estates
+            </T>
+          </View>
+        </View>
+        <View style={styles.kpiGrid}>
+          <Kpi v={String(overdue.length)} label="Overdue follow-ups" tone={overdue.length ? 'att' : 'good'} icon="time" onPress={() => p.onGo('alerts')} />
+          <Kpi v={String(open.length)} label="Open follow-ups" tone={open.length ? 'mon' : 'good'} icon="flag" onPress={() => p.onGo('alerts')} />
+          <Kpi v={String(doneMonth)} label="Visits completed this month" tone="good" icon="checkmark-done" onPress={() => p.onGo('etu')} />
+          <Kpi v={String(drafts.length)} label="Visits in progress" tone={drafts.length ? 'rnd' : 'muted'} icon="create" onPress={() => p.onGo('etu')} />
+        </View>
+      </View>
+
+      {/* quick actions */}
+      <CTA label="NEW FIELD VISIT" icon="add-circle" onPress={() => p.onNewEtu()} />
+      <View style={styles.row2}>
+        <Pressable style={[styles.quick, { borderColor: C.rnd }]} onPress={() => p.onGo('upload')}>
+          <Ionicons name="cloud-upload" size={20} color={C.rnd} />
+          <T style={[styles.quickText, { color: C.rnd }]}>Upload data</T>
+        </Pressable>
+        <Pressable style={[styles.quick, { borderColor: C.att }]} onPress={() => p.onGo('alerts')}>
+          <Ionicons name="podium" size={20} color={C.att} />
+          <T style={[styles.quickText, { color: C.att }]}>All priorities</T>
+        </Pressable>
+      </View>
+
+      {/* top 5 */}
+      {pri.length > 0 && (
+        <Section icon="podium-outline" title="Top 5 fields" right={<T style={styles.hint}>worst first</T>}>
+          {pri.slice(0, 5).map((it, i) => (
+            <Pressable key={it.key} style={[styles.priRow, { borderLeftColor: TONE_FG[it.tone] }]} onPress={() => p.onOpenField(it.f.id)}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T style={styles.priTitle} numberOfLines={1}>
+                  {i + 1}. {it.e.name} · {it.f.code}
+                </T>
+                <T style={[styles.meta, { color: TONE_FG[it.tone] }]} numberOfLines={1}>
+                  {(it.tLost >= 1 ? Math.round(it.tLost) + ' t below budget · ' : '') + it.reasons.map((r) => r.t).join(' · ')}
+                </T>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.muted} />
+            </Pressable>
+          ))}
+        </Section>
+      )}
+
+      {/* recent activity */}
+      <Section icon="time-outline" title="Recent field visits" right={<Pressable onPress={() => p.onGo('etu')}><T style={styles.link}>All visits</T></Pressable>}>
+        {recent.length === 0 && <T style={styles.hint}>No ETU field visits yet. Tap NEW FIELD VISIT to start one.</T>}
+        {recent.map((v) => {
+          const e = estates.find((x) => x.id === v.estateId) || {};
+          const c = etuCounts(v);
+          return (
+            <Pressable key={v.id} style={styles.card} onPress={() => p.onOpenEtu(v.id)}>
+              <DateBox date={v.date} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T style={styles.priTitle} numberOfLines={1}>{(e.name || 'No estate') + ' Estate'}</T>
+                <View style={styles.chips}>
+                  <Chip tone={v.status === 'done' ? 'good' : 'rnd'} dot label={v.status === 'done' ? 'Completed' : 'In progress'} />
+                  <Chip tone="muted" label={(v.fields || []).length + ' fields'} />
+                  {c.attention > 0 && <Chip tone="att" label={c.attention + ' attention'} />}
+                </View>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={C.muted} />
+            </Pressable>
+          );
+        })}
+      </Section>
+
+      {/* profit */}
+      {withProfit.length > 0 && (
+        <Section icon="cash-outline" title="Profit YTD" right={<Pressable onPress={() => p.onGo('profit')}><T style={styles.link}>Details</T></Pressable>}>
+          <Text style={styles.moneyBig}>{rmMil(total)}</Text>
+          {withProfit.map((e) => (
+            <Bar key={e.id} label={e.name} value={num(e.profitAct)} max={maxP} color={C.accent} right={rmMil(e.profitAct)} />
+          ))}
+        </Section>
+      )}
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// ETU VISIT: step by step  Estate → Fields → Observations → Review
+// =====================================================
+const STEPS = ['Estate', 'Fields', 'Observations', 'Review'];
+
+function StepBar({ step, setStep, done }) {
+  return (
+    <View style={styles.stepBar}>
+      {STEPS.map((s, i) => {
+        const on = i === step;
+        const past = i < step || done;
+        return (
+          <Pressable key={s} style={styles.stepItem} onPress={() => setStep(i)}>
+            <View style={[styles.stepDot, past && { backgroundColor: C.good, borderColor: C.good }, on && { backgroundColor: C.accent, borderColor: C.accent }]}>
+              {past && !on ? <Ionicons name="checkmark" size={15} color="#fff" /> : <T style={[styles.stepNo, (on || past) && { color: '#fff' }]}>{i + 1}</T>}
+            </View>
+            <T style={[styles.stepText, on && { color: C.accent, fontFamily: F.bold }]} numberOfLines={1}>{s}</T>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function EtuVisitScreen(p) {
+  const { visit, estates, fields } = p;
+  const [step, setStep] = useState(visit.estateId ? ((visit.fields || []).length ? 2 : 1) : 0);
+  const [q, setQ] = useState('');
+  const [code, setCode] = useState('');
+  const [msg, setMsg] = useState('');
+  const [confirm, setConfirm] = useState(false);
+  const e = estates.find((x) => x.id === visit.estateId);
+  const ef = fields.filter((f) => f.estateId === visit.estateId);
+  const c = etuCounts(visit);
+  const vfs = visit.fields || [];
+  const set = (k, val) => p.onChange({ ...visit, [k]: val });
+  const done = visit.status === 'done';
+
+  // fields seen on earlier visits of this estate
+  const recentIds = [];
+  (p.etu || [])
+    .filter((v) => v.id !== visit.id && v.estateId === visit.estateId)
+    .sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+    .forEach((v) => (v.fields || []).forEach((f) => f.fieldId && !recentIds.includes(f.fieldId) && recentIds.push(f.fieldId)));
+
+  const has = (fid) => vfs.some((x) => x.fieldId === fid);
+  const toggle = (f) => {
+    const cur = vfs.find((x) => x.fieldId === f.id);
+    if (cur) {
+      if ((cur.obs || []).length) {
+        setMsg('Field ' + f.code + ' has observations. Open it under Observations to remove it.');
+        return;
+      }
+      set('fields', vfs.filter((x) => x.id !== cur.id));
+    } else {
+      set('fields', [...vfs, { id: newId(), fieldId: f.id, code: f.code, obs: [] }]);
+    }
+    setMsg('');
+  };
+  const addCode = () => {
+    const cd = code.trim().toUpperCase();
+    if (!cd) return;
+    const f = ef.find((x) => x.code === cd);
+    if (f) {
+      if (!has(f.id)) toggle(f);
+    } else if (!vfs.some((x) => x.code === cd)) {
+      set('fields', [...vfs, { id: newId(), fieldId: null, code: cd, obs: [] }]);
+    }
+    setCode('');
+  };
+  const share = async () => {
+    try {
+      await Share.share({ message: etuReport(visit, e) });
+    } catch (err) {
+      setMsg('Sharing works on the phone, not in this preview.');
+    }
+  };
+  const list = ef.filter((f) => norm(f.code).includes(norm(q)));
+  const canNext = step === 0 ? !!visit.estateId : step === 1 ? vfs.length > 0 : true;
+
+  return (
+    <View style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+        <View style={styles.visitHead}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <T style={styles.sumEyebrow}>ETU field visit · {showDate(visit.date)}</T>
+            <Text style={styles.pageTitle} numberOfLines={1}>{e ? e.name + ' Estate' : 'New field visit'}</Text>
+          </View>
+          <Chip tone={done ? 'good' : 'rnd'} dot label={done ? 'Completed' : 'In progress'} />
+        </View>
+        <StepBar step={step} setStep={setStep} done={done} />
+
+        {step === 0 && (
+          <>
+            <Section icon="business-outline" title="1. Select estate">
+              {estates.map((x) => {
+                const on = x.id === visit.estateId;
+                return (
+                  <Pressable key={x.id} style={[styles.pick, on && styles.pickOn]} onPress={() => set('estateId', x.id)}>
+                    <Ionicons name={on ? 'radio-button-on' : 'radio-button-off'} size={22} color={on ? C.accent : C.muted} />
+                    <View style={{ flex: 1 }}>
+                      <T style={styles.priTitle}>{x.name}</T>
+                      <T style={styles.meta}>{[x.region, x.sou].filter(Boolean).join(' · ') || 'No region / SOU'}</T>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </Section>
+            <Section icon="calendar-outline" title="Date & team">
+              <View style={styles.row2}>
+                <DateField label="Visit date" value={visit.date} onChange={(d) => set('date', d)} />
+              </View>
+              <Field label="Visited by" full value={visit.visitedBy || ''} placeholder="e.g. Azri, ETU" onChangeText={(t) => set('visitedBy', t)} />
+            </Section>
+          </>
+        )}
+
+        {step === 1 && (
+          <Section icon="grid-outline" title="2. Select fields" right={<Chip tone={vfs.length ? 'good' : 'muted'} dot label={vfs.length + ' selected'} />}>
+            {vfs.length > 0 && (
+              <View style={[styles.chips, { marginTop: 0 }]}>
+                {vfs.map((x) => (
+                  <View key={x.id} style={styles.selChip}>
+                    <T style={styles.selChipText}>{x.code}</T>
+                  </View>
+                ))}
+              </View>
+            )}
+            {recentIds.length > 0 && (
+              <>
+                <T style={styles.kvLabel}>Visited before</T>
+                <View style={[styles.chips, { marginTop: 0 }]}>
+                  {recentIds.slice(0, 8).map((id) => {
+                    const f = ef.find((x) => x.id === id);
+                    if (!f) return null;
+                    const on = has(id);
+                    return (
+                      <Pressable key={id} style={[styles.filterChip, on && styles.filterChipOn]} onPress={() => toggle(f)}>
+                        <T style={[styles.filterText, on && { color: '#fff' }]}>{f.code}</T>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+            <SearchBox value={q} onChange={setQ} placeholder={'Search ' + ef.length + ' fields, e.g. 2016A'} />
+            {list.slice(0, 60).map((f) => {
+              const on = has(f.id);
+              return (
+                <Pressable key={f.id} style={[styles.pick, on && styles.pickOn]} onPress={() => toggle(f)}>
+                  <Ionicons name={on ? 'checkbox' : 'square-outline'} size={24} color={on ? C.accent : C.muted} />
+                  <T style={[styles.priTitle, { flex: 1 }]}>Field {f.code}</T>
+                  <T style={styles.meta}>{(f.ha || '-') + ' ha'}</T>
+                </Pressable>
+              );
+            })}
+            {list.length > 60 && <T style={styles.hint}>Showing 60 of {list.length}. Type to narrow down.</T>}
+            <View style={styles.row2}>
+              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Field not listed? Type code" placeholderTextColor="#8A8F80" autoCapitalize="characters" value={code} onChangeText={setCode} />
+              <Pressable style={styles.addBtn} onPress={addCode}>
+                <Ionicons name="add" size={24} color="#fff" />
+              </Pressable>
+            </View>
+          </Section>
+        )}
+
+        {step === 2 && (
+          <Section icon="eye-outline" title="3. Observations & photos">
+            <T style={styles.hint}>Tap a field to record what you saw: issue, photos and action plan.</T>
+            {vfs.length === 0 && <T style={styles.hint}>No fields selected. Go back to step 2.</T>}
+            {vfs.map((f) => {
+              const cnt = ESTAT_ORDER.map((k) => [k, (f.obs || []).filter((o) => o.status === k).length]).filter((x) => x[1]);
+              const nph = (f.obs || []).reduce((n, o) => n + (o.photos || []).length, 0);
+              const topics = [];
+              (f.obs || []).filter((o) => o.status !== 'good').forEach((o) => {
+                const t = o.title || o.category;
+                if (!topics.find((x) => x.t === t)) topics.push({ t: t, o: o });
+              });
+              return (
+                <Pressable key={f.id} style={styles.fcardE} onPress={() => p.onOpenField(f.id)}>
+                  <View style={styles.rowBetween}>
+                    <T style={styles.priTitle}>Field {f.code}</T>
+                    <View style={styles.smallBtn}>
+                      <Ionicons name={(f.obs || []).length ? 'create' : 'add'} size={16} color="#fff" />
+                      <T style={styles.smallBtnText}>{(f.obs || []).length ? 'Open' : 'Record'}</T>
+                    </View>
+                  </View>
+                  <View style={[styles.chips, { marginTop: 0 }]}>
+                    {cnt.map(([k, n]) => (
+                      <Chip key={k} tone={ESTAT[k].tone} dot label={n + ' ' + ESTAT[k].short} />
+                    ))}
+                    {nph > 0 && <Chip tone="muted" label={nph + ' photos'} />}
+                    {!(f.obs || []).length && <Chip tone="muted" label="Not recorded yet" />}
+                  </View>
+                  {topics.length > 0 && (
+                    <View style={[styles.chips, { marginTop: 0 }]}>
+                      {topics.slice(0, 4).map((x) => (
+                        <View key={x.t} style={styles.topic}>
+                          <Ionicons name={catOf(x.o.category).ic} size={13} color={catOf(x.o.category).c} />
+                          <T style={styles.topicText} numberOfLines={1}>{x.t}</T>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+          </Section>
+        )}
+
+        {step === 3 && (
+          <>
+            <Section icon="document-text-outline" title="4. Additional issues">
+              <Field label="" full multiline value={visit.notes || ''} placeholder="Anything else seen on the visit, one point per line" onChangeText={(t) => set('notes', t)} />
+            </Section>
+            <Section icon="checkmark-done-outline" title="Review">
+              <View style={styles.kv}>
+                <KV label="Estate" value={e ? e.name : '-'} />
+                <KV label="Date" value={showDate(visit.date)} />
+                <KV label="Visited by" value={visit.visitedBy || '-'} />
+                <KV label="Fields" value={String(vfs.length)} />
+              </View>
+              <View style={styles.revGrid}>
+                {ESTAT_ORDER.map((k) => (
+                  <View key={k} style={[styles.revCell, TONE_BG[ESTAT[k].tone]]}>
+                    <Text style={[styles.kpiVal, { color: TONE_FG[ESTAT[k].tone] }]}>{c[k]}</Text>
+                    <T style={styles.kpiLbl}>{ESTAT[k].short}</T>
+                  </View>
+                ))}
+              </View>
+              <T style={styles.meta}>{c.actions} action plans (added to Follow-ups) · {c.photos} photos</T>
+              {vfs.some((f) => !(f.obs || []).length) && (
+                <T style={[styles.meta, { color: C.mon }]}>
+                  Not recorded yet: {vfs.filter((f) => !(f.obs || []).length).map((f) => f.code).join(', ')}
+                </T>
+              )}
+            </Section>
+            <CTA label={done ? 'REOPEN VISIT' : 'MARK VISIT AS COMPLETED'} icon={done ? 'refresh' : 'checkmark-done'} color={done ? C.muted : C.good} onPress={() => set('status', done ? 'draft' : 'done')} />
+            <CTA label="SHARE REPORT (WHATSAPP)" icon="share-social" color={C.rnd} onPress={share} />
+            <DeleteBox label="Delete this visit and all its observations and photos?" button="Delete visit" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
+          </>
+        )}
+        {msg ? <T style={[styles.meta, { color: C.mon }]}>{msg}</T> : null}
+      </ScrollView>
+
+      {/* step buttons at the thumb */}
+      <View style={styles.stepFoot}>
+        <Pressable style={[styles.footBtn, step === 0 && { opacity: 0.4 }]} disabled={step === 0} onPress={() => setStep(step - 1)}>
+          <Ionicons name="arrow-back" size={20} color={C.ink} />
+          <T style={styles.footText}>Back</T>
+        </Pressable>
+        {step < 3 ? (
+          <Pressable style={[styles.footBtn, styles.footNext, !canNext && { opacity: 0.4 }]} disabled={!canNext} onPress={() => setStep(step + 1)}>
+            <T style={[styles.footText, { color: '#fff' }]}>Next: {STEPS[step + 1]}</T>
+            <Ionicons name="arrow-forward" size={20} color="#fff" />
+          </Pressable>
+        ) : (
+          <Pressable style={[styles.footBtn, styles.footNext]} onPress={p.onClose}>
+            <T style={[styles.footText, { color: '#fff' }]}>Done</T>
+            <Ionicons name="checkmark" size={20} color="#fff" />
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
 // ===== STYLES =====
 const TOP_PAD =
   Platform.OS === 'ios'
@@ -4041,7 +5059,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  body: { fontFamily: F.body, color: C.ink, fontSize: 15 },
+  body: { fontFamily: F.body, color: C.ink, fontSize: 16 },
   page: { padding: 16, paddingBottom: 32, gap: 12 },
   top: {
     flexDirection: 'row',
@@ -4064,7 +5082,7 @@ const styles = StyleSheet.create({
   },
   topTitle: { fontFamily: F.display, fontSize: 24, color: C.ink },
   topTitleB: { fontFamily: F.displayBold, color: C.accent },
-  topSub: { fontSize: 12, color: C.muted, fontFamily: F.semi },
+  topSub: { fontSize: 13, color: C.muted, fontFamily: F.semi },
   iconBtn: {
     width: 40,
     height: 40,
@@ -4139,7 +5157,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   hstatVal: { fontFamily: F.display, fontSize: 22, color: C.ink, lineHeight: 24 },
-  hstatLbl: { fontSize: 10.5, color: C.muted, fontFamily: F.semi },
+  hstatLbl: { fontSize: 11.5, color: C.muted, fontFamily: F.semi },
   section: {
     backgroundColor: C.surface,
     borderRadius: 16,
@@ -4159,13 +5177,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sectionTitle: { fontFamily: F.display, fontSize: 21, color: C.ink },
-  hint: { fontSize: 12.5, color: C.muted, fontFamily: F.semi },
-  meta: { fontSize: 13, color: C.muted },
-  link: { color: C.accent, fontFamily: F.semi, fontSize: 13, textDecorationLine: 'underline' },
+  hint: { fontSize: 13.5, color: C.muted, fontFamily: F.semi },
+  meta: { fontSize: 14, color: C.muted },
+  link: { color: C.accent, fontFamily: F.semi, fontSize: 14, textDecorationLine: 'underline' },
   kv: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 },
   kvItem: { width: '50%', paddingRight: 8 },
   kvLabel: {
-    fontSize: 10.5,
+    fontSize: 11.5,
     fontFamily: F.bold,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
@@ -4189,7 +5207,7 @@ const styles = StyleSheet.create({
   field: { flex: 1, gap: 4 },
   fieldFull: { gap: 4 },
   inputMulti: { minHeight: 76, textAlignVertical: 'top' },
-  label: { fontSize: 13, fontFamily: F.semi, color: C.muted },
+  label: { fontSize: 14, fontFamily: F.semi, color: C.muted },
   input: {
     backgroundColor: C.bg,
     borderWidth: 1,
@@ -4207,8 +5225,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     backgroundColor: C.accent,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderRadius: 14,
+    paddingVertical: 15,
   },
   ctaText: { fontFamily: F.display, fontSize: 19, color: '#fff', letterSpacing: 0.6 },
   empty: {
@@ -4232,7 +5250,7 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
-  chipText: { fontSize: 12, fontFamily: F.semi },
+  chipText: { fontSize: 13, fontFamily: F.semi },
   barTrack: {
     height: 10,
     borderRadius: 5,
@@ -4320,7 +5338,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  exTitle: { fontSize: 14.5, fontFamily: F.semi },
+  exTitle: { fontSize: 16, fontFamily: F.semi },
   rcard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4364,7 +5382,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  bold: { fontFamily: F.semi, fontSize: 14.5, color: C.ink },
+  bold: { fontFamily: F.semi, fontSize: 16, color: C.ink },
   strike: { textDecorationLine: 'line-through', color: C.muted },
   costRow: {
     flexDirection: 'row',
@@ -4393,9 +5411,9 @@ const styles = StyleSheet.create({
     borderColor: C.line,
     backgroundColor: C.surface,
   },
-  stText: { fontFamily: F.semi, fontSize: 13 },
+  stText: { fontFamily: F.semi, fontSize: 14 },
   barHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
-  barLabel: { flex: 1, fontSize: 13, fontFamily: F.semi },
+  barLabel: { flex: 1, fontSize: 14, fontFamily: F.semi },
   barRight: { fontSize: 12, fontFamily: F.bold },
   barMark: {
     position: 'absolute',
@@ -4457,7 +5475,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   fieldBoxText: { fontFamily: F.display, fontSize: 19, color: C.accent, lineHeight: 21 },
-  fieldBoxSub: { fontSize: 9.5, fontFamily: F.bold, color: C.muted },
+  fieldBoxSub: { fontSize: 11, fontFamily: F.bold, color: C.muted },
   costRo: { fontFamily: F.semi, fontSize: 14 },
   pickChip: {
     flexDirection: 'row',
@@ -4661,7 +5679,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tileTitle: { fontFamily: F.display, fontSize: 21, color: C.ink },
-  tileSub: { fontSize: 12, color: C.muted, fontFamily: F.semi },
+  tileSub: { fontSize: 13.5, color: C.muted, fontFamily: F.semi },
   tileBadge: {
     position: 'absolute',
     top: 10,
@@ -4699,7 +5717,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  menuTitle: { fontFamily: F.semi, fontSize: 15.5, color: C.ink },
+  menuTitle: { fontFamily: F.semi, fontSize: 17, color: C.ink },
   pageHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   pageTitle: { fontFamily: F.display, fontSize: 26, color: C.ink, lineHeight: 28 },
   searchBox: {
@@ -4723,7 +5741,7 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface,
   },
   filterChipOn: { backgroundColor: C.accent, borderColor: C.accent },
-  filterText: { fontFamily: F.semi, fontSize: 13, color: C.ink },
+  filterText: { fontFamily: F.semi, fontSize: 14, color: C.ink },
   card: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4734,4 +5752,227 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 11,
   },
+  sumRow: {
+    flexDirection: 'row',
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.line,
+    paddingVertical: 10,
+    ...SHADOW,
+  },
+  sumItem: { flex: 1, alignItems: 'center', gap: 2 },
+  sumVal: { fontFamily: F.display, fontSize: 22, color: C.ink, lineHeight: 24 },
+  sumLbl: { fontSize: 11, color: C.muted, fontFamily: F.semi },
+  rankBox: { width: 34, height: 34, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  rankNo: { fontFamily: F.display, fontSize: 19 },
+  catIc: { borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  smallBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+  },
+  smallBtnText: { color: '#fff', fontFamily: F.semi, fontSize: 14 },
+  fcardE: {
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 12,
+    padding: 12,
+    gap: 8,
+  },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  topic: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.surface,
+    borderRadius: 999,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    maxWidth: '100%',
+  },
+  topicText: { fontSize: 13, fontFamily: F.semi },
+  thumbS: { width: 52, height: 52, borderRadius: 8, backgroundColor: C.sunk },
+  ocard: {
+    flexDirection: 'row',
+    gap: 12,
+    backgroundColor: C.bg,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 12,
+    padding: 12,
+  },
+  stGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 },
+  stCell: {
+    width: '48.5%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.bg,
+  },
+  catGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8 },
+  catBtn: {
+    width: '48.5%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 8,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: C.line,
+    backgroundColor: C.bg,
+  },
+  catText: { flex: 1, fontSize: 13.5, fontFamily: F.semi, color: C.ink },
+  ghostBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
+  libItem: {
+    gap: 2,
+    padding: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: C.accent,
+    backgroundColor: C.accentSoft,
+  },
+  nav: {
+    flexDirection: 'row',
+    backgroundColor: C.surface,
+    borderTopWidth: 1,
+    borderTopColor: C.line,
+    paddingBottom: Platform.OS === 'ios' ? 22 : 6,
+  },
+  navBtn: { flex: 1, alignItems: 'center', paddingTop: 8, paddingBottom: 2, gap: 2 },
+  navBar: { position: 'absolute', top: 0, left: '28%', right: '28%', height: 3, borderRadius: 2, backgroundColor: C.accent },
+  navText: { fontSize: 12, fontFamily: F.semi, color: C.muted },
+  navBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -12,
+    minWidth: 20,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: C.att,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  sumCard: {
+    backgroundColor: C.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: C.line,
+    padding: 16,
+    gap: 12,
+    ...SHADOW,
+  },
+  sumEyebrow: { fontSize: 12, fontFamily: F.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: C.gold },
+  sumMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  sumBig: { fontFamily: F.displayBold, fontSize: 56, lineHeight: 58 },
+  sumTitle: { fontFamily: F.display, fontSize: 24, color: C.ink, lineHeight: 26 },
+  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+  kpi: {
+    width: '48.5%',
+    backgroundColor: C.bg,
+    borderRadius: 12,
+    borderLeftWidth: 5,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 2,
+  },
+  kpiVal: { fontFamily: F.displayBold, fontSize: 30, lineHeight: 32 },
+  kpiLbl: { fontSize: 13, fontFamily: F.semi, color: C.muted },
+  quick: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    backgroundColor: C.surface,
+  },
+  quickText: { fontFamily: F.bold, fontSize: 15 },
+  priRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: C.bg,
+    borderRadius: 12,
+    borderLeftWidth: 5,
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+  },
+  priTitle: { fontFamily: F.semi, fontSize: 16.5, color: C.ink },
+  moneyBig: { fontFamily: F.displayBold, fontSize: 34, color: C.accent },
+  visitHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  stepBar: {
+    flexDirection: 'row',
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.line,
+    paddingVertical: 10,
+  },
+  stepItem: { flex: 1, alignItems: 'center', gap: 4 },
+  stepDot: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    borderWidth: 2,
+    borderColor: C.line,
+    backgroundColor: C.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepNo: { fontFamily: F.bold, fontSize: 14, color: C.muted },
+  stepText: { fontSize: 12, fontFamily: F.semi, color: C.muted },
+  pick: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 13,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: C.line,
+    backgroundColor: C.bg,
+  },
+  pickOn: { borderColor: C.accent, backgroundColor: C.accentSoft },
+  selChip: { backgroundColor: C.accent, borderRadius: 999, paddingVertical: 4, paddingHorizontal: 10 },
+  selChipText: { color: '#fff', fontFamily: F.semi, fontSize: 13 },
+  revGrid: { flexDirection: 'row', gap: 6 },
+  revCell: { flex: 1, borderRadius: 12, padding: 8, alignItems: 'center' },
+  stepFoot: {
+    flexDirection: 'row',
+    gap: 10,
+    padding: 12,
+    backgroundColor: C.surface,
+    borderTopWidth: 1,
+    borderTopColor: C.line,
+  },
+  footBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.bg,
+  },
+  footNext: { flex: 1.6, backgroundColor: C.accent, borderColor: C.accent },
+  footText: { fontFamily: F.bold, fontSize: 16, color: C.ink },
 });
