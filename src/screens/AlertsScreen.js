@@ -1,0 +1,170 @@
+import { Pressable, ScrollView, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import React, { useState } from 'react';
+import { Chip, FilterChips, PageHead, SearchBox, TONE_BG, TONE_FG } from '../components/ui';
+import { showDate } from '../logic/dates';
+import { norm } from '../logic/importRows';
+import { ACTIVITIES, actStatus, checkOf, costAlerts, isOverdue, latestFieldVisit, num, pctText, profitVar, rmMil, yieldStatus, yieldVar } from '../logic/rules';
+import { C, T, styles } from '../theme';
+
+// =====================================================
+// PRIORITIES: one row per field, ranked by impact
+// tonnes lost = mature ha x (budget - actual) yield YTD
+// =====================================================
+export function fieldPriorities(p) {
+  const { estates, fields, visits, actions } = p;
+  const etu = p.etu || [];
+  const out = [];
+  fields.forEach((f) => {
+    const e = estates.find((x) => x.id === f.estateId);
+    if (!e) return;
+    const ha = num(f.ha) || 0;
+    const gap = num(f.ypBgt) !== null && num(f.ypAct) !== null ? num(f.ypBgt) - num(f.ypAct) : 0;
+    const tLost = gap > 0 ? gap * ha : 0;
+    const ys = yieldStatus(f);
+    const ca = costAlerts(f);
+    const lv = latestFieldVisit(visits, f.id);
+    const ck = lv ? checkOf(lv, f.id) : null;
+    const red = lv ? ACTIVITIES.filter((a) => actStatus(ck, a) === 'action').map((a) => a.name) : [];
+    const late = actions.filter((a) => a.fieldId === f.id && a.status !== 'done' && isOverdue(a));
+    // latest ETU visit that has this field
+    let att = 0;
+    const ev = etu
+      .filter((v) => (v.fields || []).some((x) => x.fieldId === f.id))
+      .sort((a, b) => (b.date || '').localeCompare(a.date || ''))[0];
+    if (ev) {
+      const vf = ev.fields.find((x) => x.fieldId === f.id);
+      att = (vf.obs || []).filter((o) => o.status === 'attention').length;
+    }
+    const yBad = ys === 'action' || ys === 'monitor';
+    if (!yBad && !ca.length && !red.length && !late.length && !att) return;
+    const reasons = [];
+    if (yBad) reasons.push({ t: 'Yield ' + pctText(yieldVar(f)), tone: ys === 'action' ? 'att' : 'mon' });
+    if (late.length) reasons.push({ t: late.length + ' overdue', tone: 'att' });
+    if (att) reasons.push({ t: att + ' ETU attention', tone: 'att' });
+    if (red.length) reasons.push({ t: red.length + ' activity', tone: 'att' });
+    if (ca.length) reasons.push({ t: ca.length + ' cost over', tone: 'mon' });
+    const score = tLost + 15 * late.length + 10 * att + 4 * red.length + 2 * ca.length;
+    out.push({
+      key: f.id, f: f, e: e, tLost: tLost, score: score, reasons: reasons,
+      tone: ys === 'action' || late.length || att ? 'att' : 'mon',
+      sub: red.length ? red.slice(0, 2).join(', ') : ca.length ? ca.slice(0, 2).join(', ') : '',
+    });
+  });
+  return out.sort((a, b) => b.score - a.score);
+}
+
+// estate-level items (follow-ups with no field, profit)
+function estatePriorities(p) {
+  const out = [];
+  p.actions
+    .filter((a) => !a.fieldId && a.status !== 'done' && isOverdue(a))
+    .forEach((a) => {
+      const e = p.estates.find((x) => x.id === a.estateId);
+      if (e) out.push({ key: a.id, e: e, icon: 'time', tone: 'att', text: a.text, sub: 'Overdue since ' + showDate(a.due) + ' · PIC ' + (a.pic || '-'), go: () => p.onOpenEstate(e.id, 'Follow-ups') });
+    });
+  p.estates.forEach((e) => {
+    const pv = profitVar(e);
+    if (pv !== null && pv < 0) out.push({ key: e.id + 'p', e: e, icon: 'trending-down', tone: 'mon', text: 'Profit below budget ' + pctText(pv), sub: rmMil(e.profitAct) + ' YTD', go: () => p.onOpenEstate(e.id, 'Profit') });
+  });
+  return out;
+}
+
+function PriorityRow({ it, rank, onPress }) {
+  return (
+    <Pressable style={styles.exRow} onPress={onPress}>
+      <View style={[styles.rankBox, TONE_BG[it.tone]]}>
+        <Text style={[styles.rankNo, { color: TONE_FG[it.tone] }]}>{rank}</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T style={styles.kvLabel} numberOfLines={1}>{it.e.name}</T>
+        <T style={styles.exTitle} numberOfLines={2}>
+          Field {it.f.code}
+          {it.tLost >= 1 ? <T style={[styles.meta, { color: C.att }]}>{'  ' + Math.round(it.tLost).toLocaleString('en-MY') + ' t below budget'}</T> : null}
+        </T>
+        <View style={[styles.chips, { marginTop: 3 }]}>
+          {it.reasons.map((r) => (
+            <Chip key={r.t} tone={r.tone} label={r.t} />
+          ))}
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={C.muted} />
+    </Pressable>
+  );
+}
+
+function EstateItemRow({ it }) {
+  return (
+    <Pressable style={styles.exRow} onPress={it.go}>
+      <View style={[styles.exIc, TONE_BG[it.tone]]}>
+        <Ionicons name={it.icon} size={19} color={TONE_FG[it.tone]} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T style={styles.kvLabel} numberOfLines={1}>{it.e.name + ' · estate'}</T>
+        <T style={styles.exTitle} numberOfLines={2}>{it.text}</T>
+        <T style={styles.meta} numberOfLines={2}>{it.sub}</T>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={C.muted} />
+    </Pressable>
+  );
+}
+
+// =====================================================
+// PRIORITIES PAGE
+// =====================================================
+export function AlertsScreen(p) {
+  const pri = fieldPriorities(p);
+  const est = estatePriorities(p);
+  const [kind, setKind] = useState('fields');
+  const [ee, setEe] = useState('all');
+  const [q, setQ] = useState('');
+  const estIds = [...new Set(pri.map((x) => x.e.id))];
+  const list = pri.filter((x) => (ee === 'all' || x.e.id === ee) && norm(x.f.code + x.e.name).includes(norm(q)));
+  const elist = est.filter((x) => ee === 'all' || x.e.id === ee);
+  return (
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <PageHead icon="podium-outline" title="Priorities" sub="One row per field, worst first" />
+      <FilterChips
+        value={kind}
+        onChange={setKind}
+        options={[
+          { key: 'fields', label: 'Fields', n: pri.length },
+          { key: 'estate', label: 'Estate items', n: est.length },
+        ]}
+      />
+      {estIds.length > 1 && (
+        <FilterChips
+          value={ee}
+          onChange={setEe}
+          options={[{ key: 'all', label: 'All estates' }].concat(estIds.map((id) => ({ key: id, label: p.estates.find((e) => e.id === id).name })))}
+        />
+      )}
+      {kind === 'fields' ? (
+        <>
+          <SearchBox value={q} onChange={setQ} placeholder="Search field code" />
+          <View style={styles.exc}>
+            {list.slice(0, 150).map((it) => (
+              <PriorityRow key={it.key} it={it} rank={pri.indexOf(it) + 1} onPress={() => p.onOpenField(it.f.id)} />
+            ))}
+            {list.length === 0 && (
+              <View style={styles.exRow}>
+                <T style={styles.hint}>Nothing here.</T>
+              </View>
+            )}
+          </View>
+        </>
+      ) : (
+        <View style={styles.exc}>
+          {elist.map((it) => (
+            <EstateItemRow key={it.key} it={it} />
+          ))}
+          {elist.length === 0 && (
+            <View style={styles.exRow}>
+              <T style={styles.hint}>No estate-level items.</T>
+            </View>
+          )}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
