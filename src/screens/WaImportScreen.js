@@ -21,7 +21,7 @@ export function WaImportScreen({ estates, fields, onImport }) {
 
   const result = useMemo(() => {
     if (!chat) return null;
-    return buildImport(parseChat(chat.text), estates, fields, null);
+    return buildImport(parseChat(chat.text), estates, fields, null, chat.dups);
   }, [chat, estates, fields]);
 
   const pick = async () => {
@@ -79,8 +79,9 @@ export function WaImportScreen({ estates, fields, onImport }) {
             <T style={styles.bold}>.txt</T> together with its photos (select several).
           </T>
           <T style={styles.hint}>
-            Tip: name the place in a message before the photos, e.g. &quot;Bukit Badak Field 2016A&quot;. Write
-            &quot;Action: …&quot; on a new line for the action plan.
+            Each line under a field code becomes one observation, e.g. &quot;2016A&quot; then &quot;Delay circle
+            raking&quot; and &quot;Spotted strip spraying&quot; on their own lines. Photos go to the remark posted
+            nearest in time. Write &quot;Action: …&quot; under a line for its action plan.
           </T>
         </Section>
       )}
@@ -107,6 +108,18 @@ export function WaImportScreen({ estates, fields, onImport }) {
               <T style={styles.hint}>
                 {allFiles.length - found} photos are named in the chat but were not picked. Export with &quot;Include
                 media&quot;, or pick the photos together with the .txt.
+              </T>
+            )}
+            {(result.stats.deleted > 0 || result.stats.dupPhotos > 0 || result.stats.unplaced > 0) && (
+              <T style={styles.hint}>
+                {[
+                  result.stats.deleted ? result.stats.deleted + ' deleted messages skipped' : '',
+                  result.stats.dupPhotos ? result.stats.dupPhotos + ' repeated photos removed' : '',
+                  result.stats.unplaced ? result.stats.unplaced + ' photos not near any remark (left out)' : '',
+                ]
+                  .filter(Boolean)
+                  .join(' · ')}
+                .
               </T>
             )}
             {result.stats.omitted > 0 && (

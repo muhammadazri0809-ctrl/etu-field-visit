@@ -67,45 +67,71 @@ test('findFields and helpers', () => {
   expect(splitLabels('Rat damage\nAction: baiting\nPunca: no owl boxes')).toEqual({ issue: 'Rat damage', action: 'baiting', root: 'no owl boxes' });
 });
 
-test('buildImport: Android chat -> estate, fields, observations, photos', () => {
-  const { groups, stats } = buildImport(parseChat(ANDROID), estates, fields, null);
-  expect(groups.map((g) => g.estateName)).toEqual(['Bukit Badak', 'CEP Rengam Estate']);
-  const bb = groups[0];
-  expect(bb.date).toBe('2026-11-13');
-  expect(bb.fields.map((f) => f.code)).toEqual(['2016A', '2018B']);
-  const f16 = bb.fields[0];
+// Team style: estate, then a field code, then one issue per line, then photos
+const TEAM = `12/11/2026, 09:00 - Muhammad Azri: Bukit Badak
+12/11/2026, 09:01 - Muhammad Azri: 2008B
+Ganoderma
+Circle Raking
+Frond stacking
+12/11/2026, 09:02 - Muhammad Azri: IMG-20261112-WA0001.jpg (file attached)
+12/11/2026, 09:02 - Muhammad Azri: IMG-20261112-WA0002.jpg (file attached)
+12/11/2026, 09:02 - Muhammad Azri: IMG-20261112-WA0003.jpg (file attached)
+12/11/2026, 09:03 - Muhammad Azri: IMG-20261112-WA0004.jpg (file attached)
+12/11/2026, 09:05 - Muhammad Azri: You deleted this message
+12/11/2026, 09:06 - Muhammad Azri: This message was deleted
+12/11/2026, 09:07 - Muhammad Azri: Mesej ini telah dipadam
+12/11/2026, 09:10 - Muhammad Azri: 2016A
+Spotted Strip Spraying
+Action: spray within 2 weeks
+Good pruning <This message was edited>
+12/11/2026, 09:11 - Muhammad Azri: IMG-20261112-WA0005.jpg (file attached)
+12/11/2026, 09:12 - Muhammad Azri: ok
+12/11/2026, 09:13 - Muhammad Azri: 2016A
+Spotted strip spraying
+12/11/2026, 11:30 - Muhammad Azri: IMG-20261112-WA0009.jpg (file attached)`;
+
+test('buildImport: one issue per line, deleted messages skipped, photos shared out', () => {
+  const { groups, stats } = buildImport(parseChat(TEAM), estates, fields, null, new Set(['IMG-20261112-WA0004.jpg']));
+  expect(groups).toHaveLength(1);
+  const g = groups[0];
+  expect(g).toMatchObject({ estateId: 'bb', date: '2026-11-12' });
+  expect(g.fields.map((f) => f.code)).toEqual(['2008B', '2016A']);
+  const [f08, f16] = g.fields;
+  expect(f08.obs.map((o) => o.title)).toEqual(['Ganoderma', 'Circle Raking', 'Canopy Management']);
+  expect(f08.obs.map((o) => o.category)).toEqual(['Pest & Disease', 'Field Upkeep / Weeding', 'Field Practice']);
+  // photos shared over the message's lines in order; the repeated picture (WA0004) is dropped
+  expect(f08.obs.map((o) => o.files)).toEqual([['IMG-20261112-WA0001.jpg'], ['IMG-20261112-WA0002.jpg'], ['IMG-20261112-WA0003.jpg']]);
   expect(f16.fieldId).toBe('f1');
-  expect(f16.obs).toHaveLength(1);
-  // photo before and after the message both attach to it
-  expect(f16.obs[0].files).toEqual(['IMG-20261113-WA0001.jpg', 'IMG-20261113-WA0002.jpg']);
-  expect(f16.obs[0]).toMatchObject({ category: 'Pest & Disease', status: 'attention', action: 'census and spray within 2 weeks' });
-  expect(bb.fields[1].obs[0]).toMatchObject({ files: ['IMG-20261113-WA0003.jpg'], category: 'Field Upkeep / Weeding' });
-  const cr = groups[1];
-  expect(cr.fields[0]).toMatchObject({ code: '2022B', fieldId: 'f3' });
-  expect(cr.fields[0].obs[0].category).toBe('Drainage / Water Mgmt.');
-  expect(stats.omitted).toBe(1);
-  expect(stats.obs).toBe(3);
+  expect(f16.obs).toHaveLength(2); // the repeated "spotted strip spraying" is not added again
+  expect(f16.obs[0]).toMatchObject({ title: 'Strip Spray', status: 'attention', action: 'spray within 2 weeks', files: ['IMG-20261112-WA0005.jpg'] });
+  expect(f16.obs[1]).toMatchObject({ title: 'Canopy Management', status: 'good', issue: 'Good pruning' });
+  expect(stats).toMatchObject({ deleted: 3, dupPhotos: 1, unplaced: 1, obs: 5 });
+  expect(JSON.stringify(groups)).not.toMatch(/deleted/i);
 });
 
-test('buildImport: iPhone chat with an estate that is not in the app yet', () => {
+test('buildImport: a pest line is not titled as canopy because of "fronds"', () => {
+  const chat = '13/11/2026, 09:00 - A: Bukit Badak 2016A\n13/11/2026, 09:01 - A: Bagworm on lower fronds';
+  const o = buildImport(parseChat(chat), estates, fields, null).groups[0].fields[0].obs[0];
+  expect(o).toMatchObject({ title: 'Bagworm on lower fronds', category: 'Pest & Disease' });
+});
+
+test('buildImport: chat with an estate that is not in the app yet', () => {
   const { groups } = buildImport(parseChat(IOS), estates, fields, null);
   expect(groups[0]).toMatchObject({ estateId: 'bb', date: '2026-11-14' });
   const o = groups[0].fields[0].obs[0];
-  expect(o.files).toEqual(['00000012-PHOTO-2026-11-14-09-16-01.jpg']);
-  expect(o.status).toBe('good');
-  expect(o.category).toBe('Field Practice');
+  expect(o).toMatchObject({ status: 'good', title: 'Canopy Management', files: ['00000012-PHOTO-2026-11-14-09-16-01.jpg'] });
   expect(groups[1]).toMatchObject({ estateId: null, estateName: 'Sungai Lembu' });
   expect(groups[1].fields[0]).toMatchObject({ code: '7C', fieldId: null });
-  expect(groups[1].fields[0].obs[0].category).toBe('Pest & Disease');
+  expect(groups[1].fields[0].obs[0]).toMatchObject({ category: 'Pest & Disease', issue: 'Rat damage on fresh bunches' });
 });
 
 test('buildImport: chat that never names an estate uses the chosen default', () => {
   const chat = '13/11/2026, 09:00 - A: Field 2016A loose fruits not collected at the platform';
   const { groups } = buildImport(parseChat(chat), estates, fields, 'cr');
-  // 2016A belongs to Bukit Badak but the default estate is used when chosen
   expect(groups[0].estateId).toBe('cr');
   const g2 = buildImport(parseChat(chat), estates, fields, null).groups[0];
   expect(g2.estateId).toBe('bb'); // unique field code found the estate
+  expect(g2.fields[0].obs[0]).toMatchObject({ title: 'Crop Losses', category: 'Harvesting' });
 });
 
 test('groupsToVisits: creates visits, new estates and links photos', () => {
