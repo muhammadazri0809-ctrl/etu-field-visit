@@ -1,19 +1,21 @@
 import React, { useMemo, useState } from 'react';
-import { ActivityIndicator, Image, ScrollView, Text, View } from 'react-native';
+import { ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CTA, Chip, DateBox, PageHead, Section } from '../components/ui';
 import { Dropdown } from '../components/Dropdown';
 import { newId, showDate } from '../logic/dates';
 import { ESTAT } from '../logic/etu';
-import { buildImport, groupsToVisits, parseChat, relink } from '../logic/whatsapp';
+import { buildImport, groupsToVisits, importKey, parseChat, relink, textHash } from '../logic/whatsapp';
 import { keepPhoto } from '../storage';
 import { pickChatFiles } from '../whatsappFiles';
 import { C, T, styles } from '../theme';
+import { Thumb } from '../components/Thumb';
+import { Bone } from '../components/Skeleton';
 
 // =====================================================
 // IMPORT A WHATSAPP CHAT INTO ETU VISITS
 // =====================================================
-export function WaImportScreen({ estates, fields, onImport, onUpload }) {
+export function WaImportScreen({ estates, fields, etu, onImport, onUpload }) {
   const [chat, setChat] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -47,6 +49,11 @@ export function WaImportScreen({ estates, fields, onImport, onUpload }) {
   const found = chat ? allFiles.filter((n) => chat.photos[n]).length : 0;
   const noEstate = groups.filter((g) => !g.estateId && !g.estateName).length;
   const newNames = [...new Set(groups.filter((g) => !g.estateId && g.estateName).map((g) => g.estateName))];
+  // already imported from this same chat (same estate + day)? skip them, never duplicate
+  const chatId = chat ? textHash(chat.text) : '';
+  const doneKeys = new Set((etu || []).map((v) => v.importKey).filter(Boolean));
+  const isDone = (g) => doneKeys.has(importKey(chatId, g, estates, fallback));
+  const todo = groups.filter((g) => !isDone(g));
   const allF = groups.reduce((n, g) => n + g.fields.length, 0);
   const matchedF = groups.reduce((n, g) => n + g.fields.filter((f) => f.fieldId).length, 0);
   const nObs = groups.reduce((n, g) => n + g.fields.reduce((m, f) => m + f.obs.length, 0), 0);
@@ -56,9 +63,10 @@ export function WaImportScreen({ estates, fields, onImport, onUpload }) {
     setBusy(true);
     try {
       const kept = {};
-      const out = groupsToVisits(groups, {
+      const out = groupsToVisits(todo, {
         estates,
         fallbackEstateId: fallback,
+        chatId,
         newId,
         photoUri: (name) => {
           if (!chat.photos[name]) return null;
@@ -114,7 +122,17 @@ export function WaImportScreen({ estates, fields, onImport, onUpload }) {
         secondary={!!chat}
         onPress={busy ? undefined : pick}
       />
-      {busy && <ActivityIndicator color={C.accent} />}
+      {busy && (
+        <View style={[styles.section, { gap: 10 }]}>
+          <Bone style={{ width: '50%', height: 16 }} />
+          <Bone style={{ height: 12 }} />
+          <View style={styles.photoRow}>
+            {[0, 1, 2, 3].map((i) => (
+              <Bone key={i} style={styles.thumbS} />
+            ))}
+          </View>
+        </View>
+      )}
       {msg ? <T style={[styles.hint, { color: C.attInk }]}>{msg}</T> : null}
 
       {result && (
@@ -176,6 +194,7 @@ export function WaImportScreen({ estates, fields, onImport, onUpload }) {
 
           {groups.map((g) => (
             <GroupCard
+              done={isDone(g)}
               key={g.key}
               g={g}
               photos={chat.photos}
@@ -185,9 +204,18 @@ export function WaImportScreen({ estates, fields, onImport, onUpload }) {
             />
           ))}
 
-          {groups.length > 0 && (
+          {groups.length > 0 && todo.length === 0 && (
+            <Section icon="checkmark-done-outline" title="Already imported">
+              <T style={styles.meta}>Every visit in this chat is already in the app. Nothing new to import.</T>
+            </Section>
+          )}
+          {todo.length > 0 && (
             <CTA
-              label={blocked ? 'CHOOSE AN ESTATE ABOVE' : 'IMPORT ' + groups.length + ' VISIT' + (groups.length === 1 ? '' : 'S')}
+              label={
+                blocked
+                  ? 'CHOOSE AN ESTATE ABOVE'
+                  : 'IMPORT ' + todo.length + ' VISIT' + (todo.length === 1 ? '' : 'S') + (todo.length < groups.length ? ' (NEW ONLY)' : '')
+              }
               icon="download-outline"
               color={blocked ? C.faint : undefined}
               onPress={blocked || busy ? undefined : doImport}
@@ -199,7 +227,7 @@ export function WaImportScreen({ estates, fields, onImport, onUpload }) {
   );
 }
 
-function GroupCard({ g, photos, estates, fallback, onPick }) {
+function GroupCard({ g, photos, estates, fallback, onPick, done }) {
   const e = g.estateId ? estates.find((x) => x.id === g.estateId) : null;
   const fb = !g.estateId && !g.estateName ? estates.find((x) => x.id === fallback) : null;
   const name = e ? e.name : g.estateName || (fb ? fb.name : 'Estate not named');
@@ -213,6 +241,7 @@ function GroupCard({ g, photos, estates, fallback, onPick }) {
             {!e && g.estateName ? <Chip tone="mon" icon="alert-circle" label="Not in estate data · new estate" /> : null}
             {!e && !g.estateName ? <Chip tone={fb ? 'muted' : 'att'} label={fb ? 'Chosen estate' : 'Choose estate'} /> : null}
             <Chip tone="muted" label={showDate(g.date)} />
+            {done ? <Chip tone="good" icon="checkmark-circle" label="Already imported · skipped" /> : null}
           </View>
         </View>
       </View>
@@ -248,7 +277,7 @@ function GroupCard({ g, photos, estates, fallback, onPick }) {
                     <View style={styles.photoRow}>
                       {o.files.map((n) =>
                         photos[n] ? (
-                          <Image key={n} source={{ uri: photos[n] }} style={styles.thumbS} />
+                          <Thumb key={n} uri={photos[n]} style={styles.thumbS} />
                         ) : (
                           <View key={n} style={[styles.thumbS, styles.thumbMissing]}>
                             <Ionicons name="image-outline" size={18} color={C.faint} />

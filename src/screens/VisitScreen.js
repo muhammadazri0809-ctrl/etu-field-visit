@@ -103,7 +103,7 @@ export function VisitScreen(p) {
           {estateFields.map((f) => {
             const on = ids.includes(f.id);
             return (
-              <Pressable key={f.id} style={[styles.pickChip, on && styles.pickChipOn]} onPress={() => toggleField(f.id)}>
+              <Pressable hitSlop={8} key={f.id} style={[styles.pickChip, on && styles.pickChipOn]} onPress={() => toggleField(f.id)}>
                 <Ionicons name={on ? 'checkbox' : 'square-outline'} size={16} color={on ? '#fff' : C.accent} />
                 <T style={[styles.pickChipText, on && { color: '#fff' }]}>{f.code}</T>
               </Pressable>

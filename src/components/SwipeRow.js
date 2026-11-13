@@ -30,6 +30,8 @@ export function SwipeRow({ children, onDelete, label }) {
       // "Capture" lets the row take the gesture from the card's own tap handler
       onMoveShouldSetPanResponderCapture: (e, g) => Math.abs(g.dx) > 12 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
       onPanResponderTerminationRequest: () => false,
+      // catch a row that is still sliding: continue from where it is now
+      onPanResponderGrant: () => x.stopAnimation((v) => (pos.current = v)),
       onPanResponderMove: (e, g) => x.setValue(pos.current + g.dx),
       onPanResponderRelease: (e, g) => {
         const v = pos.current + g.dx;

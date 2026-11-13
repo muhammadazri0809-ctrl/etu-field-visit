@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { KeyboardAvoidingView, Modal, Platform, Pressable, Text, TextInput, View } from 'react-native';
+import { Pressable, Text, TextInput, View } from 'react-native';
+import { BottomSheet } from './BottomSheet';
 import { Ionicons } from '@expo/vector-icons';
 import { COSTS, LIMITS, costOf, money, num, pctText, variance } from '../logic/rules';
 import { C, T, styles } from '../theme';
@@ -154,11 +155,7 @@ function CostSheet({ obj, index, onIndex, onClose, onChange }) {
     onChange({ ...obj, costs: costs });
   };
   return (
-    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.sheetBg} onPress={onClose} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <View style={styles.sheet}>
-          <View style={styles.sheetGrip} />
+    <BottomSheet visible onClose={onClose}>
           <View style={styles.rowBetween}>
             <View style={{ flex: 1, minWidth: 0 }}>
               <T style={styles.kvLabel}>
@@ -214,8 +211,6 @@ function CostSheet({ obj, index, onIndex, onClose, onChange }) {
               </Pressable>
             )}
           </View>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+    </BottomSheet>
   );
 }

@@ -8,7 +8,7 @@ import { C, T, styles } from '../theme';
 // ===== REUSABLE: top bar =====
 // Home tabs: logo + app name. Inner pages: back button + where you are (one line).
 // action = optional icon button on the right: { icon, label, onPress }
-export function TopBar({ sub, onBack, action, top }) {
+export function TopBar({ sub, onBack, action, onSearch, top }) {
   return (
     <View style={[styles.top, top ? { paddingTop: Math.max(top + 6, 14) } : null]}>
       {onBack ? (
@@ -36,6 +36,11 @@ export function TopBar({ sub, onBack, action, top }) {
           </>
         )}
       </View>
+      {onSearch ? (
+        <Pressable style={styles.iconBtn} onPress={onSearch} hitSlop={6} accessibilityLabel="Search and jump">
+          <Ionicons name="search" size={20} color={C.ink} />
+        </Pressable>
+      ) : null}
       {action ? (
         <Pressable style={styles.iconBtn} onPress={action.onPress} hitSlop={6} accessibilityLabel={action.label}>
           <Ionicons name={action.icon} size={20} color={C.accent} />
@@ -52,7 +57,9 @@ export function Hero({ eyebrow, title, sub, stats, mini }) {
     <View style={styles.hero}>
       <View style={styles.heroTx}>
         {eyebrow ? <T style={styles.eyebrowGold}>{eyebrow}</T> : null}
-        <Text style={[styles.heroTitle, mini && styles.heroTitleMini]}>{title}</Text>
+        <Text style={[styles.heroTitle, mini && styles.heroTitleMini]} textBreakStrategy="balanced">
+          {title}
+        </Text>
         {sub ? <T style={styles.hint}>{sub}</T> : null}
       </View>
       {stats && stats.length ? (
@@ -101,7 +108,9 @@ export function Section({ icon, title, right, children, style }) {
           <View style={styles.hic}>
             <Ionicons name={icon} size={17} color={C.accent} />
           </View>
-          <Text style={styles.sectionTitle}>{title}</Text>
+          <Text style={styles.sectionTitle} textBreakStrategy="balanced">
+            {title}
+          </Text>
           <View style={{ flex: 1 }} />
           {right}
         </View>
@@ -162,7 +171,9 @@ export function CTA({ label, icon, onPress, color, secondary }) {
 export function Empty({ title, text }) {
   return (
     <View style={styles.empty}>
-      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptyTitle} textBreakStrategy="balanced">
+        {title}
+      </Text>
       <T style={styles.hint}>{text}</T>
     </View>
   );
@@ -242,7 +253,7 @@ export function DeleteBox({ label, button, confirm, setConfirm, onDelete }) {
     );
   }
   return (
-    <Pressable onPress={() => setConfirm(true)} style={styles.delRow}>
+    <Pressable onPress={() => setConfirm(true)} style={styles.delRow} hitSlop={10}>
       <Ionicons name="trash-outline" size={16} color={C.att} />
       <T style={{ color: C.attInk }}>{button}</T>
     </Pressable>
@@ -295,7 +306,9 @@ export function PageHead({ icon, title, sub, right }) {
         <Ionicons name={icon} size={18} color={C.accent} />
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.pageTitle}>{title}</Text>
+        <Text style={styles.pageTitle} textBreakStrategy="balanced">
+          {title}
+        </Text>
         {sub ? <T style={styles.meta}>{sub}</T> : null}
       </View>
       {right}
@@ -331,7 +344,7 @@ export function FilterChips({ options, value, onChange }) {
         {options.map((o) => {
           const on = o.key === value;
           return (
-            <Pressable key={o.key} style={[styles.filterChip, on && styles.filterChipOn]} onPress={() => onChange(o.key)}>
+            <Pressable key={o.key} style={[styles.filterChip, on && styles.filterChipOn]} onPress={() => onChange(o.key)} hitSlop={6}>
               <T style={[styles.filterText, on && { color: '#fff' }]}>
                 {o.label}
                 {o.n !== undefined ? ' ' + o.n : ''}

@@ -510,7 +510,7 @@ export function buildImport(messages, estates, fields, defaultEstateId, skipFile
 // Groups (after the user checked them) -> new ETU visits + estates to create.
 // photoUri(fileName) returns the kept photo path, or null when the photo is not available.
 export function groupsToVisits(groups, opts) {
-  const { estates, fallbackEstateId, newId, photoUri } = opts;
+  const { estates, fallbackEstateId, newId, photoUri, chatId } = opts;
   const newEstates = [];
   const visits = [];
   let attached = 0;
@@ -576,6 +576,7 @@ export function groupsToVisits(groups, opts) {
     }
     const visit = {
       id: newId(),
+      importKey: chatId ? importKey(chatId, g, estates, fallbackEstateId) : undefined,
       estateId,
       date: g.date,
       visitedBy: senders.join(', '),
@@ -630,4 +631,20 @@ export function relink(g, fields) {
       return { ...f, fieldId: hit ? hit.id : null };
     }),
   };
+}
+
+// ----- import keys: the same chat imported twice must not create the same visit twice -----
+export function textHash(t) {
+  let h = 0x811c9dc5;
+  const s = String(t || '');
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return (h >>> 0).toString(36) + s.length.toString(36);
+}
+
+// Same chat + same estate + same day = same key (stable even after a new estate was created)
+export function importKey(chatId, g, estates, fallbackEstateId) {
+  const e = g.estateId ? estates.find((x) => x.id === g.estateId) : null;
+  const fb = !g.estateId && !g.estateName ? estates.find((x) => x.id === fallbackEstateId) : null;
+  const name = e ? e.name : g.estateName || (fb ? fb.name : '');
+  return chatId + '|' + estKey(name) + '|' + g.date;
 }

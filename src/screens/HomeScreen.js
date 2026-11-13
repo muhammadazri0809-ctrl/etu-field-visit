@@ -95,7 +95,7 @@ export function HomeScreen(p) {
       )}
 
       {/* recent activity */}
-      <Section icon="time-outline" title="Recent field visits" right={<Pressable onPress={() => p.onGo('etu')}><T style={styles.link}>All visits</T></Pressable>}>
+      <Section icon="time-outline" title="Recent field visits" right={<Pressable hitSlop={8} onPress={() => p.onGo('etu')}><T style={styles.link}>All visits</T></Pressable>}>
         {recent.length === 0 && <T style={styles.hint}>No ETU field visits yet. Tap NEW FIELD VISIT to start one.</T>}
         {recent.map((v) => {
           const e = estates.find((x) => x.id === v.estateId) || {};
@@ -119,7 +119,7 @@ export function HomeScreen(p) {
 
       {/* profit */}
       {withProfit.length > 0 && (
-        <Section icon="cash-outline" title="Profit YTD" right={<Pressable onPress={() => p.onGo('profit')}><T style={styles.link}>Details</T></Pressable>}>
+        <Section icon="cash-outline" title="Profit YTD" right={<Pressable hitSlop={8} onPress={() => p.onGo('profit')}><T style={styles.link}>Details</T></Pressable>}>
           <Text style={styles.moneyBig}>{rmMil(total)}</Text>
           {withProfit.map((e) => (
             <Bar key={e.id} label={e.name} value={num(e.profitAct)} max={maxP} color={C.accent} right={rmMil(e.profitAct)} />
