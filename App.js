@@ -1,4 +1,4 @@
-// ETU FIELD VISIT v7.2 (reads full estate report workbook, region/SOU lookup, fields, upload, photos, settings)
+// ETU FIELD VISIT v7.3 (tidy pages, reads full estate report workbook, region/SOU lookup, fields, upload, photos, settings)
 // Site visits + 10 activity triggers + follow-up actions
 // + 12 cost elements + estate profit
 import React, { useState, useEffect } from 'react';
@@ -15,6 +15,7 @@ import {
   Share,
   Modal,
   Image,
+  BackHandler,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
@@ -1094,7 +1095,24 @@ export default function App() {
   const [actions, setActions] = useSavedState('v3-actions', []);
   const [settings, setSettings] = useSavedState('v5-settings', {});
   const [sel, setSel] = useSavedState('v6-lookup', {});
-  const [screen, setScreen] = useState({ name: 'home' });
+  // Page history: the last page is the one on screen
+  const [stack, setStack] = useState([{ name: 'home' }]);
+  const screen = stack[stack.length - 1];
+  const go = (s) => setStack([...stack, s]);
+  const goBack = () => setStack(stack.length > 1 ? stack.slice(0, -1) : stack);
+  const goHome = () => setStack([{ name: 'home' }]);
+
+  // Phone back button = previous page (not close the app)
+  useEffect(() => {
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (stack.length > 1) {
+        setStack(stack.slice(0, -1));
+        return true;
+      }
+      return false;
+    });
+    return () => sub.remove();
+  }, [stack]);
 
   if (!fontsLoaded && !fontError) {
     return (
@@ -1107,11 +1125,10 @@ export default function App() {
   // Use the limits from Settings for all triggers
   applySettings(settings);
 
-  const goHome = () => setScreen({ name: 'home' });
-  const openEstate = (id, tab) =>
-    setScreen({ name: 'estate', id: id, tab: tab || 'Fields' });
-  const openField = (id, tab) =>
-    setScreen({ name: 'field', id: id, tab: tab || 'Profile' });
+  // tab = a section page, no tab = the estate / field menu page
+  const openEstate = (id, tab) => go({ name: 'estate', id: id, tab: tab || null });
+  const openField = (id, tab) => go({ name: 'field', id: id, tab: tab || null });
+  const openVisit = (id) => go({ name: 'visit', id: id });
 
   const save = (list, setList) => (item) =>
     setList(list.map((x) => (x.id === item.id ? item : x)));
@@ -1128,33 +1145,33 @@ export default function App() {
   const newVisit = (estateId, fieldIds) => {
     const v = { id: newId(), estateId: estateId, date: today(), fieldIds: fieldIds || [], checks: {} };
     setVisits([v, ...visits]);
-    setScreen({ name: 'visit', id: v.id });
+    openVisit(v.id);
   };
-  const openLookup = () => setScreen({ name: 'lookup' });
   const common = {
     estates, fields, visits, actions,
     onSaveAction: saveAction,
     onDeleteAction: deleteAction,
+    onOpenEstate: openEstate,
+    onOpenField: openField,
+    onOpenVisit: openVisit,
   };
 
   let body = null;
-  let back = null;
   let sub = 'Fields · Triggers · Follow-up · Cost';
+  const back = stack.length > 1 ? goBack : null;
 
   if (screen.name === 'estate') {
     const e = estates.find((x) => x.id === screen.id);
-    sub = e.name;
-    back = goHome;
+    if (!e) return null;
+    sub = e.name + (screen.tab ? ' · ' + screen.tab : '');
     body = (
       <EstateScreen
+        key={e.id + (screen.tab || '')}
         {...common}
         estate={e}
         tab={screen.tab}
-        setTab={(t) => setScreen({ ...screen, tab: t })}
         onChange={saveEstate}
-        onOpenField={(id) => openField(id)}
         onAddField={(f) => setFields([...fields, f])}
-        onOpenVisit={(id) => setScreen({ name: 'visit', id: id })}
         onNewVisit={() => newVisit(e.id, [])}
         onDelete={() => {
           setEstates(estates.filter((x) => x.id !== e.id));
@@ -1167,29 +1184,31 @@ export default function App() {
     );
   } else if (screen.name === 'field') {
     const f = fields.find((x) => x.id === screen.id);
-    const e = estates.find((x) => x.id === f.estateId);
-    sub = e.name + ' · Field ' + f.code;
-    back = () => openEstate(e.id, 'Fields');
+    const e = f && estates.find((x) => x.id === f.estateId);
+    if (!f || !e) return null;
+    sub = e.name + ' · Field ' + f.code + (screen.tab ? ' · ' + screen.tab : '');
     body = (
       <FieldScreen
+        key={f.id + (screen.tab || '')}
         {...common}
         field={f}
         estate={e}
         tab={screen.tab}
-        setTab={(t) => setScreen({ ...screen, tab: t })}
         onChange={saveField}
+        onNewVisit={() => newVisit(e.id, [f.id])}
         onDelete={() => {
           setFields(fields.filter((x) => x.id !== f.id));
           setActions(actions.filter((a) => a.fieldId !== f.id));
-          openEstate(e.id, 'Fields');
+          goBack();
+          goBack();
         }}
       />
     );
   } else if (screen.name === 'visit') {
     const v = visits.find((x) => x.id === screen.id);
-    const e = estates.find((x) => x.id === v.estateId);
-    sub = e.name + ' · ' + showDate(v.date);
-    back = () => openEstate(e.id, 'Visits');
+    const e = v && estates.find((x) => x.id === v.estateId);
+    if (!v || !e) return null;
+    sub = e.name + ' · ' + (v.title || 'Visit') + ' · ' + showDate(v.date);
     body = (
       <VisitScreen
         {...common}
@@ -1202,26 +1221,29 @@ export default function App() {
         onDelete={() => {
           setVisits(visits.filter((x) => x.id !== v.id));
           setActions(actions.filter((a) => a.visitId !== v.id));
-          openEstate(e.id, 'Visits');
+          goBack();
         }}
       />
     );
-  } else if (screen.name === 'lookup') {
-    sub = 'Field lookup';
-    back = goHome;
+  } else if (screen.name === 'estates') {
+    sub = 'Estates';
     body = (
-      <LookupScreen
+      <EstatesScreen
         {...common}
-        sel={sel}
-        setSel={setSel}
-        onNewVisit={newVisit}
-        onOpenField={openField}
-        onOpenVisit={(id) => setScreen({ name: 'visit', id: id })}
+        onAdd={(name) => setEstates([...estates, { id: newId(), name: name, profitAct: '', profitBgt: '' }])}
       />
     );
+  } else if (screen.name === 'alerts') {
+    sub = 'Needs attention';
+    body = <AlertsScreen {...common} />;
+  } else if (screen.name === 'profit') {
+    sub = 'Profit by estate';
+    body = <ProfitScreen {...common} />;
+  } else if (screen.name === 'lookup') {
+    sub = 'Lookup';
+    body = <LookupScreen {...common} sel={sel} setSel={setSel} onNewVisit={newVisit} />;
   } else if (screen.name === 'settings') {
-    sub = 'Trigger settings';
-    back = goHome;
+    sub = 'Settings';
     body = (
       <SettingsScreen
         settings={settings}
@@ -1239,7 +1261,6 @@ export default function App() {
     );
   } else if (screen.name === 'upload') {
     sub = 'Upload estate data';
-    back = goHome;
     body = (
       <UploadScreen
         estates={estates}
@@ -1276,18 +1297,7 @@ export default function App() {
     body = (
       <HomeScreen
         {...common}
-        onOpen={openEstate}
-        onOpenField={openField}
-        onUpload={() => setScreen({ name: 'upload' })}
-        onSettings={() => setScreen({ name: 'settings' })}
-        sel={sel}
-        onPick={(s) => {
-          setSel(s);
-          openLookup();
-        }}
-        onAdd={(name) =>
-          setEstates([...estates, { id: newId(), name: name, profitAct: '', profitBgt: '' }])
-        }
+        onGo={(name) => go({ name: name })}
         onExample={() => {
           const ex = exampleData();
           setEstates(ex.estates);
@@ -1302,380 +1312,9 @@ export default function App() {
   return (
     <View style={styles.app}>
       <StatusBar barStyle="dark-content" backgroundColor={C.skyTop} />
-      <TopBar sub={sub} onBack={back} alerts={openCount} onBell={goHome} />
+      <TopBar sub={sub} onBack={back} alerts={openCount} onBell={() => go({ name: 'alerts' })} />
       <View style={{ flex: 1 }}>{body}</View>
     </View>
-  );
-}
-
-// =====================================================
-// HOME: action required, estates, profit chart
-// =====================================================
-function HomeScreen(p) {
-  const { estates, fields, visits, actions } = p;
-  const [name, setName] = useState('');
-  const [showAll, setShowAll] = useState(false);
-  const open = actions.filter((a) => a.status !== 'done');
-  const overdue = open.filter(isOverdue);
-  const fcode = (id) => (id ? (fields.find((f) => f.id === id) || {}).code || '?' : 'Estate');
-
-  const items = [];
-  overdue.forEach((a) => {
-    const e = estates.find((x) => x.id === a.estateId);
-    if (e) items.push({ key: a.id, go: () => p.onOpen(e.id, 'Actions'), tone: 'att', icon: 'time', text: e.name + ' ' + fcode(a.fieldId) + ': ' + a.text, sub: 'Overdue since ' + showDate(a.due) + ' · PIC ' + (a.pic || '-') });
-  });
-  estates.forEach((e) => {
-    const v = latestVisit(visits, e.id);
-    if (v) {
-      findings(v)
-        .filter((x) => x.st === 'action')
-        .forEach((x) => {
-          items.push({ key: v.id + x.fieldId + x.act.id, go: () => p.onOpenField(x.fieldId, 'History'), tone: 'att', icon: x.act.icon, text: e.name + ' ' + fcode(x.fieldId) + ': ' + x.act.name, sub: x.note || 'Visit ' + showDate(v.date) });
-        });
-    }
-    fields
-      .filter((f) => f.estateId === e.id)
-      .forEach((f) => {
-        const ys = yieldStatus(f);
-        if (ys === 'action' || ys === 'monitor') {
-          items.push({ key: f.id + 'y', go: () => p.onOpenField(f.id, 'Profile'), tone: ys === 'action' ? 'att' : 'mon', icon: 'trending-down', text: e.name + ' ' + f.code + ': yield below budget', sub: f.ypAct + ' vs ' + f.ypBgt + ' mt/ha (' + pctText(yieldVar(f)) + ')' });
-        }
-        const ca = costAlerts(f);
-        if (ca.length) {
-          items.push({ key: f.id + 'c', go: () => p.onOpenField(f.id, 'Cost'), tone: 'att', icon: 'cash', text: e.name + ' ' + f.code + ': ' + ca.length + ' cost over budget', sub: ca.slice(0, 3).join(', ') + (ca.length > 3 ? '…' : '') });
-        }
-      });
-    const pv = profitVar(e);
-    if (pv !== null && pv < 0) {
-      items.push({ key: e.id + 'p', go: () => p.onOpen(e.id, 'Profit'), tone: 'mon', icon: 'trending-down', text: e.name + ': profit below budget', sub: pctText(pv) + ' vs budget' });
-    }
-  });
-  const shown = showAll ? items : items.slice(0, 8);
-
-  const withProfit = estates.filter((e) => num(e.profitAct) !== null);
-  const maxP = withProfit.reduce(
-    (m, e) => Math.max(m, num(e.profitAct) || 0, num(e.profitBgt) || 0),
-    1
-  );
-
-  return (
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <Hero
-        eyebrow="Estate field visits"
-        title={items.length ? items.length + ' items need attention' : 'All in order'}
-        sub={fields.length + ' fields in ' + estates.length + ' estates'}
-        stats={[
-          { ic: 'grid', v: String(fields.length), l: 'Fields' },
-          { ic: 'flag', v: String(open.length), l: 'Follow-ups', tone: open.length ? 'mon' : 'good' },
-          { ic: 'time', v: String(overdue.length), l: 'Overdue', tone: overdue.length ? 'att' : 'good' },
-        ]}
-      />
-
-      <Section icon="search" title="Lookup" right={<T style={styles.hint}>Region · SOU · Estate · Field</T>}>
-        {estates.length === 0 ? (
-          <T style={styles.hint}>Upload estate data first.</T>
-        ) : (
-          <Filters {...p} sel={p.sel} onChange={p.onPick} />
-        )}
-      </Section>
-
-      {items.length > 0 && (
-        <View style={styles.exc}>
-          <View style={styles.excHead}>
-            <View style={[styles.hic, { backgroundColor: C.att }]}>
-              <Ionicons name="alert" size={17} color="#fff" />
-            </View>
-            <Text style={styles.excTitle}>ACTION REQUIRED</Text>
-            <View style={{ flex: 1 }} />
-            <View style={styles.excCount}>
-              <T style={styles.excCountText}>{items.length}</T>
-            </View>
-          </View>
-          {shown.map((it) => (
-            <Pressable key={it.key} style={styles.exRow} onPress={it.go}>
-              <View style={[styles.exIc, TONE_BG[it.tone]]}>
-                <Ionicons name={it.icon} size={19} color={TONE_FG[it.tone]} />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={styles.exTitle} numberOfLines={1}>{it.text}</T>
-                <T style={styles.meta} numberOfLines={1}>{it.sub}</T>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.muted} />
-            </Pressable>
-          ))}
-          {items.length > 8 && (
-            <Pressable style={styles.exRow} onPress={() => setShowAll(!showAll)}>
-              <T style={styles.link}>{showAll ? 'Show less' : 'Show all ' + items.length}</T>
-            </Pressable>
-          )}
-        </View>
-      )}
-
-      <Section icon="business-outline" title="Estates">
-        {estates.length === 0 && (
-          <>
-            <T style={styles.hint}>Add an estate below, or load example data to try the app.</T>
-            <CTA label="LOAD EXAMPLE DATA" icon="download-outline" color={C.rnd} onPress={p.onExample} />
-          </>
-        )}
-        <View style={styles.row2}>
-          <View style={{ flex: 1.4 }}>
-            <CTA label="UPLOAD DATA" icon="cloud-upload" onPress={p.onUpload} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <CTA label="SETTINGS" icon="options" color={C.muted} onPress={p.onSettings} />
-          </View>
-        </View>
-        {estates.map((e) => {
-          const ef = fields.filter((f) => f.estateId === e.id);
-          const ey = estateYield(ef);
-          const oa = actions.filter((a) => a.estateId === e.id && a.status !== 'done').length;
-          const v = latestVisit(visits, e.id);
-          const red = v ? countIn(findings(v), 'action') : 0;
-          return (
-            <Pressable key={e.id} style={styles.rcard} onPress={() => p.onOpen(e.id)}>
-              <View style={styles.estBox}>
-                <Text style={styles.estBoxText}>{e.name.slice(0, 2).toUpperCase()}</Text>
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={styles.rcardTitle}>{e.name}</Text>
-                <T style={styles.meta}>
-                  {[e.region, e.sou].filter(Boolean).join(' · ')}
-                  {e.region || e.sou ? ' · ' : ''}
-                  {ef.length} fields{ey ? ' · yield ' + ey.act.toFixed(1) + ' mt/ha (' + pctText(ey.v) + ')' : ''}
-                </T>
-                <View style={styles.chips}>
-                  {red > 0 && <Chip tone="att" dot label={red + ' action'} />}
-                  {oa > 0 && <Chip tone="rnd" label={oa + ' follow-up'} />}
-                  {v && <Chip tone="muted" label={'Visit ' + showDate(v.date)} />}
-                </View>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={C.muted} />
-            </Pressable>
-          );
-        })}
-        <View style={styles.row2}>
-          <TextInput
-            style={[styles.input, { flex: 1 }]}
-            placeholder="New estate name"
-            placeholderTextColor="#8A8F80"
-            value={name}
-            onChangeText={setName}
-          />
-          <Pressable
-            style={styles.addBtn}
-            onPress={() => {
-              if (name.trim()) p.onAdd(name.trim());
-              setName('');
-            }}>
-            <Ionicons name="add" size={24} color="#fff" />
-          </Pressable>
-        </View>
-      </Section>
-
-      {withProfit.length > 0 && (
-        <Section icon="bar-chart-outline" title="Profit by estate" right={<T style={styles.hint}>RM'000 YTD</T>}>
-          {withProfit.map((e) => {
-            const pv = profitVar(e);
-            return (
-              <Bar
-                key={e.id}
-                label={e.name + '  ' + money(e.profitAct)}
-                value={num(e.profitAct) || 0}
-                max={maxP}
-                marker={num(e.profitBgt) === null ? undefined : num(e.profitBgt)}
-                color={pv !== null && pv < 0 ? C.att : C.good}
-                right={pctText(pv)}
-              />
-            );
-          })}
-          <T style={styles.hint}>Bar = actual profit. Black line = budget.</T>
-        </Section>
-      )}
-    </ScrollView>
-  );
-}
-
-// =====================================================
-// ESTATE: fields, visits, follow-ups, cost, profit
-// =====================================================
-function EstateScreen(p) {
-  const { estate, fields, visits, actions, tab, setTab, onChange } = p;
-  const [confirm, setConfirm] = useState(false);
-  const [nf, setNf] = useState({ code: '', year: '', ha: '' });
-  const ef = fields.filter((f) => f.estateId === estate.id);
-  const ev = visits
-    .filter((v) => v.estateId === estate.id)
-    .sort((a, b) => b.date.localeCompare(a.date));
-  const ea = actions.filter((a) => a.estateId === estate.id);
-  const open = ea.filter((a) => a.status !== 'done');
-  const pv = profitVar(estate);
-  const ey = estateYield(ef);
-  const ec = estateCost(ef);
-  const fcode = (id) => (id ? (fields.find((f) => f.id === id) || {}).code || '?' : 'Estate');
-
-  const addField = () => {
-    const code = nf.code.trim().toUpperCase();
-    if (!code) return;
-    p.onAddField({
-      id: newId(), estateId: estate.id, code: code, year: nf.year, ha: nf.ha,
-      ypAct: '', ypBgt: '', ypLy: '', costs: {},
-    });
-    setNf({ code: '', year: '', ha: '' });
-  };
-
-  return (
-    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <Hero
-        mini
-        eyebrow="Estate"
-        title={estate.name}
-        sub={[estate.region, estate.sou].filter(Boolean).concat([ef.length + ' fields', ey ? ey.ha.toFixed(1) + ' mature ha' : 'no area yet']).join(' · ')}
-        stats={[
-          { ic: 'leaf', v: ey ? ey.act.toFixed(1) : '-', l: 'Yield mt/ha', tone: ey && ey.v < LIMITS.yieldAmber ? 'att' : 'good' },
-          { ic: 'flag', v: String(open.length), l: 'Follow-ups', tone: open.length ? 'mon' : 'good' },
-          { ic: 'trending-up', v: pctText(pv), l: 'Profit var', tone: pv !== null && pv < 0 ? 'att' : 'good' },
-        ]}
-      />
-
-      <Seg options={['Fields', 'Visits', 'Actions', 'Cost', 'Profit']} value={tab} onChange={setTab} />
-
-      {tab === 'Fields' && (
-        <Section icon="grid-outline" title="Fields" right={<T style={styles.hint}>Yield YTD mt/ha</T>}>
-          {ef.length === 0 && <Empty title="No fields yet" text="Add your fields (blocks) below." />}
-          {ef.map((f) => {
-            const ys = yieldStatus(f);
-            const lv = latestFieldVisit(visits, f.id);
-            const red = lv ? ACTIVITIES.filter((a) => actStatus(checkOf(lv, f.id), a) === 'action').length : 0;
-            const amber = lv ? ACTIVITIES.filter((a) => actStatus(checkOf(lv, f.id), a) === 'monitor').length : 0;
-            const ca = costAlerts(f).length;
-            const fo = ea.filter((a) => a.fieldId === f.id && a.status !== 'done').length;
-            return (
-              <Pressable key={f.id} style={styles.rcard} onPress={() => p.onOpenField(f.id)}>
-                <View style={[styles.fieldBox, ys && TONE_BG[STATUS[ys].tone]]}>
-                  <Text style={[styles.fieldBoxText, ys && { color: TONE_FG[STATUS[ys].tone] }]} numberOfLines={1}>
-                    {f.code}
-                  </Text>
-                  <T style={styles.fieldBoxSub}>{f.year ? 'PY ' + f.year : ''}</T>
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.rcardTitle}>
-                    {f.ypAct || '-'} <T style={styles.meta}>vs {f.ypBgt || '-'} bgt · {f.ha || '-'} ha</T>
-                  </Text>
-                  <View style={styles.chips}>
-                    {ys && <Chip tone={STATUS[ys].tone} dot label={'Yield ' + pctText(yieldVar(f))} />}
-                    {red > 0 && <Chip tone="att" label={red + ' action'} />}
-                    {amber > 0 && <Chip tone="mon" label={amber + ' monitor'} />}
-                    {ca > 0 && <Chip tone="att" label={ca + ' cost over'} />}
-                    {fo > 0 && <Chip tone="rnd" label={fo + ' follow-up'} />}
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.muted} />
-              </Pressable>
-            );
-          })}
-          <View style={styles.fupBox}>
-            <T style={styles.kvLabel}>Add field</T>
-            <View style={styles.row2}>
-              <Field label="Field code" placeholder="e.g. 3C" autoCapitalize="characters" value={nf.code} onChangeText={(t) => setNf({ ...nf, code: t })} />
-              <Field label="Planted" placeholder="2008" keyboardType="numeric" value={nf.year} onChangeText={(t) => setNf({ ...nf, year: t })} />
-              <Field label="Mature ha" placeholder="0.0" keyboardType="numeric" value={nf.ha} onChangeText={(t) => setNf({ ...nf, ha: t })} />
-            </View>
-            <CTA label="ADD FIELD" icon="add" onPress={addField} />
-          </View>
-        </Section>
-      )}
-
-      {tab === 'Visits' && (
-        <Section icon="calendar-outline" title="Site visits">
-          <CTA label="NEW SITE VISIT" icon="add" onPress={p.onNewVisit} />
-          {ev.length === 0 && <Empty title="No visits yet" text="Start your first site visit." />}
-          {ev.map((v) => {
-            const all = findings(v);
-            const red = countIn(all, 'action');
-            const amber = countIn(all, 'monitor');
-            return (
-              <Pressable key={v.id} style={styles.rcard} onPress={() => p.onOpenVisit(v.id)}>
-                <DateBox date={v.date} />
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.rcardTitle} numberOfLines={1}>
-                    {v.title ? v.title + ' · ' : ''}{(v.fieldIds || []).length > 6 ? v.fieldIds.length + ' fields' : 'Fields ' + ((v.fieldIds || []).map(fcode).join(', ') || '-')}
-                  </Text>
-                  <View style={styles.chips}>
-                    {red > 0 && <Chip tone="att" dot label={red + ' action'} />}
-                    {amber > 0 && <Chip tone="mon" dot label={amber + ' monitor'} />}
-                    {all.length > 0 && red + amber === 0 && <Chip tone="good" dot label="All good" />}
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={C.muted} />
-              </Pressable>
-            );
-          })}
-        </Section>
-      )}
-
-      {tab === 'Actions' && (
-        <Section icon="flag-outline" title="Follow-up actions" right={<T style={styles.hint}>{open.length} open</T>}>
-          {ea.length === 0 && <Empty title="No follow-ups" text="Add them from a site visit (Monitor or Action)." />}
-          {sortActions(ea).map((a) => (
-            <ActionRow key={a.id} a={a} field={fcode(a.fieldId)} onSave={p.onSaveAction} onDelete={p.onDeleteAction} showAct />
-          ))}
-        </Section>
-      )}
-
-      {tab === 'Cost' && (
-        <>
-          <T style={styles.hint}>
-            Estate cost = field costs weighted by mature ha. Enter costs in each field (Fields tab).
-          </T>
-          <CostTable obj={ec} readOnly />
-          <CostChart obj={ec} />
-          <Section icon="grid-outline" title="Cost over budget by field">
-            {ef.map((f) => (
-              <Pressable key={f.id} style={styles.readRow} onPress={() => p.onOpenField(f.id, 'Cost')}>
-                <T style={[styles.bold, { width: 60 }]}>{f.code}</T>
-                <View style={[styles.chips, { flex: 1, marginTop: 0 }]}>
-                  {costAlerts(f).length ? (
-                    costAlerts(f).map((c) => <Chip key={c} tone="att" label={c} />)
-                  ) : (
-                    <Chip tone="good" dot label="Within budget" />
-                  )}
-                </View>
-              </Pressable>
-            ))}
-          </Section>
-        </>
-      )}
-
-      {tab === 'Profit' && (
-        <Section icon="trending-up" title="Estate profit" right={<T style={styles.hint}>RM'000 YTD</T>}>
-          <View style={styles.row2}>
-            <Field label="Region" placeholder="e.g. Pahang" value={estate.region || ''} onChangeText={(t) => onChange({ ...estate, region: t })} />
-            <Field label="SOU" placeholder="e.g. SOU 1" value={estate.sou || ''} onChangeText={(t) => onChange({ ...estate, sou: t })} />
-          </View>
-          <View style={styles.row2}>
-            <Field label="Actual" keyboardType="numeric" placeholder="0" value={estate.profitAct || ''} onChangeText={(t) => onChange({ ...estate, profitAct: t })} />
-            <Field label="Budget" keyboardType="numeric" placeholder="0" value={estate.profitBgt || ''} onChangeText={(t) => onChange({ ...estate, profitBgt: t })} />
-          </View>
-          <View style={[styles.profitBox, pv !== null && pv < 0 ? TONE_BG.att : TONE_BG.good]}>
-            <T style={styles.meta}>Variance vs budget</T>
-            <Text style={[styles.profitBig, { color: pv !== null && pv < 0 ? C.att : C.good }]}>{pctText(pv)}</Text>
-            <T style={styles.meta}>
-              {num(estate.profitAct) !== null && num(estate.profitBgt) !== null
-                ? 'RM ' + money(num(estate.profitAct) - num(estate.profitBgt)) + "'000 vs budget"
-                : 'Enter actual and budget'}
-            </T>
-            {ey && num(estate.profitAct) !== null && (
-              <T style={styles.meta}>
-                Profit per mature ha: RM {money((num(estate.profitAct) * 1000) / ey.ha)}
-              </T>
-            )}
-          </View>
-        </Section>
-      )}
-
-      <DeleteBox label={'Delete ' + estate.name + ' with all fields, visits and actions?'} button="Delete estate" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
-    </ScrollView>
   );
 }
 
@@ -1714,13 +1353,15 @@ function DeleteBox({ label, button, confirm, setConfirm, onDelete }) {
 // FIELD: profile & yield, 12 costs, history
 // =====================================================
 function FieldScreen(p) {
-  const { field, estate, visits, actions, tab, setTab, onChange } = p;
+  const { field, estate, visits, actions, tab, onChange } = p;
   const [confirm, setConfirm] = useState(false);
   const set = (k, v) => onChange({ ...field, [k]: v });
   const yv = yieldVar(field);
   const ys = yieldStatus(field);
   const fa = actions.filter((a) => a.fieldId === field.id);
   const open = fa.filter((a) => a.status !== 'done');
+  const late = open.filter(isOverdue);
+  const ca = costAlerts(field);
 
   // Every finding for this field, newest visit first
   const hist = [];
@@ -1732,105 +1373,116 @@ function FieldScreen(p) {
       ACTIVITIES.forEach((act) => {
         const st = actStatus(ck, act);
         if (st && st !== 'good') {
-          hist.push({ key: v.id + act.id, date: v.date, act: act, st: st, note: (ck.notes || {})[act.id] || '', photos: (ck.photos || {})[act.id] || [] });
+          hist.push({ key: v.id + act.id, date: v.date, title: v.title || 'Site visit', act: act, st: st, note: (ck.notes || {})[act.id] || '', photos: (ck.photos || {})[act.id] || [] });
         }
       });
     });
+  const lv = latestFieldVisit(visits, field.id);
+  const lck = lv ? checkOf(lv, field.id) : null;
+  const red = lv ? ACTIVITIES.filter((a) => actStatus(lck, a) === 'action').length : 0;
   const maxY = Math.max(num(field.ypAct) || 0, num(field.ypBgt) || 0, num(field.ypLy) || 0, 1);
+  const go = (t) => p.onOpenField(field.id, t);
+
+  // ---------- menu page ----------
+  if (!tab) {
+    return (
+      <ScrollView contentContainerStyle={styles.page}>
+        <Hero
+          mini
+          eyebrow={estate.name + ' · Field'}
+          title={'Field ' + field.code}
+          sub={(field.year ? 'Planted ' + field.year + ' · ' : '') + (field.ha || '-') + ' mature ha'}
+          stats={[
+            { ic: 'leaf', v: pctText(yv), l: 'Yield var', tone: ys ? STATUS[ys].tone : null },
+            { ic: 'cash', v: String(ca.length), l: 'Cost over', tone: ca.length ? 'att' : 'good' },
+            { ic: 'alert-circle', v: String(red), l: 'Action', tone: red ? 'att' : 'good' },
+          ]}
+        />
+        <Menu>
+          <MenuRow icon="leaf-outline" title="Field details & yield" sub={(field.ypAct || '-') + ' vs ' + (field.ypBgt || '-') + ' mt/ha · LY ' + (field.ypLy || '-')} chip={ys ? STATUS[ys].label : null} tone={ys ? STATUS[ys].tone : null} onPress={() => go('Details')} />
+          <MenuRow icon="cash-outline" title="Cost" sub={ca.length ? ca.slice(0, 2).join(', ') + (ca.length > 2 ? '…' : '') : '12 elements · within budget'} chip={ca.length ? ca.length + ' over' : null} tone={ca.length ? 'att' : null} onPress={() => go('Cost')} />
+          <MenuRow icon="search-outline" title="Findings" sub={lv ? 'Latest: ' + (lv.title || 'visit') + ' ' + showDate(lv.date) : 'Not visited yet'} chip={hist.length ? hist.length + ' found' : null} tone={red ? 'att' : hist.length ? 'mon' : null} onPress={() => go('Findings')} />
+          <MenuRow icon="flag-outline" title="Follow-ups" sub={open.length + ' open · ' + (fa.length - open.length) + ' done'} chip={late.length ? late.length + ' overdue' : null} tone={late.length ? 'att' : null} last onPress={() => go('Follow-ups')} />
+        </Menu>
+        <CTA label="NEW VISIT TO THIS FIELD" icon="add" onPress={p.onNewVisit} />
+      </ScrollView>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <Hero
-        mini
-        eyebrow={estate.name + ' · Field'}
-        title={'Field ' + field.code}
-        sub={(field.year ? 'Planted ' + field.year + ' · ' : '') + (field.ha || '-') + ' mature ha'}
-        stats={[
-          { ic: 'leaf', v: field.ypAct || '-', l: 'Yield mt/ha', tone: ys ? STATUS[ys].tone : null },
-          { ic: 'cash', v: String(costAlerts(field).length), l: 'Cost over', tone: costAlerts(field).length ? 'att' : 'good' },
-          { ic: 'flag', v: String(open.length), l: 'Follow-ups', tone: open.length ? 'mon' : 'good' },
-        ]}
-      />
-
-      <Seg options={['Profile', 'Cost', 'History']} value={tab} onChange={setTab} />
-
-      {tab === 'Profile' && (
+      {tab === 'Details' && (
         <>
-          <Section icon="information-circle-outline" title="Field profile">
+          <PageHead icon="leaf-outline" title={'Field ' + field.code} sub={estate.name + ' · details & yield YTD (mt/ha)'} />
+          <View style={[styles.profitBox, ys ? TONE_BG[STATUS[ys].tone] : TONE_BG.muted]}>
+            <T style={styles.meta}>Yield vs budget</T>
+            <Text style={[styles.profitBig, { color: ys ? TONE_FG[STATUS[ys].tone] : C.muted }]}>{pctText(yv)}</Text>
+            <T style={styles.meta}>
+              {ys ? STATUS[ys].label + ' · ' : ''}Action below {LIMITS.yieldRed}%, Monitor below {LIMITS.yieldAmber}%
+            </T>
+            {num(field.ypLy) !== null && <T style={styles.meta}>vs last year: {pctText(variance(field.ypAct, field.ypLy))}</T>}
+          </View>
+          {num(field.ypAct) !== null && (
+            <Section icon="bar-chart-outline" title="Yield chart">
+              <Bar label="Actual" value={num(field.ypAct)} max={maxY} color={ys ? TONE_FG[STATUS[ys].tone] : C.good} right={field.ypAct} />
+              <Bar label="Budget" value={num(field.ypBgt) || 0} max={maxY} color={C.muted} right={field.ypBgt || '-'} />
+              <Bar label="Last year" value={num(field.ypLy) || 0} max={maxY} color={C.rnd} right={field.ypLy || '-'} />
+            </Section>
+          )}
+          <Section icon="create-outline" title="Edit">
             <View style={styles.row2}>
               <Field label="Field code" autoCapitalize="characters" value={field.code} onChangeText={(t) => set('code', t.toUpperCase())} />
-              <Field label="Planted (year)" keyboardType="numeric" value={field.year || ''} onChangeText={(t) => set('year', t)} />
+              <Field label="Planted" keyboardType="numeric" value={field.year || ''} onChangeText={(t) => set('year', t)} />
               <Field label="Mature ha" keyboardType="numeric" value={field.ha || ''} onChangeText={(t) => set('ha', t)} />
             </View>
-          </Section>
-          <Section icon="leaf-outline" title="Yield YTD" right={<T style={styles.hint}>mt/ha</T>}>
             <View style={styles.row2}>
-              <Field label="Actual" keyboardType="numeric" placeholder="0.0" value={field.ypAct || ''} onChangeText={(t) => set('ypAct', t)} />
+              <Field label="Yield act" keyboardType="numeric" placeholder="0.0" value={field.ypAct || ''} onChangeText={(t) => set('ypAct', t)} />
               <Field label="Budget" keyboardType="numeric" placeholder="0.0" value={field.ypBgt || ''} onChangeText={(t) => set('ypBgt', t)} />
               <Field label="Last year" keyboardType="numeric" placeholder="0.0" value={field.ypLy || ''} onChangeText={(t) => set('ypLy', t)} />
             </View>
-            <View style={[styles.profitBox, ys ? TONE_BG[STATUS[ys].tone] : TONE_BG.muted]}>
-              <T style={styles.meta}>Yield vs budget</T>
-              <Text style={[styles.profitBig, { color: ys ? TONE_FG[STATUS[ys].tone] : C.muted }]}>{pctText(yv)}</Text>
-              <T style={styles.meta}>
-                {ys ? STATUS[ys].label + ' · ' : ''}Action below {LIMITS.yieldRed}%, Monitor below {LIMITS.yieldAmber}%
-              </T>
-              {num(field.ypLy) !== null && (
-                <T style={styles.meta}>vs last year: {pctText(variance(field.ypAct, field.ypLy))}</T>
-              )}
-            </View>
-            {num(field.ypAct) !== null && (
-              <>
-                <Bar label="Actual" value={num(field.ypAct)} max={maxY} color={ys ? TONE_FG[STATUS[ys].tone] : C.good} right={field.ypAct} />
-                <Bar label="Budget" value={num(field.ypBgt) || 0} max={maxY} color={C.muted} right={field.ypBgt || '-'} />
-                <Bar label="Last year" value={num(field.ypLy) || 0} max={maxY} color={C.rnd} right={field.ypLy || '-'} />
-              </>
-            )}
           </Section>
+          <DeleteBox label={'Delete field ' + field.code + ' and its follow-ups?'} button="Delete field" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
         </>
       )}
 
       {tab === 'Cost' && (
         <>
+          <PageHead icon="cash-outline" title={'Field ' + field.code + ' cost'} sub="RM/ha YTD · tap a number to edit" />
           <CostTable obj={field} onChange={onChange} />
           <CostChart obj={field} />
         </>
       )}
 
-      {tab === 'History' && (
+      {tab === 'Findings' && (
         <>
-          <Section icon="flag-outline" title="Follow-up actions" right={<T style={styles.hint}>{open.length} open</T>}>
-            {fa.length === 0 ? (
-              <T style={styles.hint}>No follow-ups for this field.</T>
-            ) : (
-              sortActions(fa).map((a) => (
-                <ActionRow key={a.id} a={a} onSave={p.onSaveAction} onDelete={p.onDeleteAction} showAct />
-              ))
-            )}
-          </Section>
-          <Section icon="time-outline" title="Findings from visits">
-            {hist.length === 0 ? (
-              <T style={styles.hint}>No Monitor or Action findings yet.</T>
-            ) : (
-              hist.map((h) => (
-                <View key={h.key} style={styles.rcard}>
-                  <DateBox date={h.date} />
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <T style={styles.bold}>{no2(h.act.id)}. {h.act.name}</T>
-                    {h.note ? <T style={styles.meta}>{h.note}</T> : null}
-                    <View style={styles.chips}>
-                      <Chip tone={STATUS[h.st].tone} dot label={STATUS[h.st].label} />
-                    </View>
-                    {h.photos.length > 0 && <PhotoStrip photos={h.photos} readOnly />}
-                  </View>
+          <PageHead icon="search-outline" title="Findings" sub={'Field ' + field.code + ' · Monitor and Action from all visits'} />
+          {hist.length === 0 && <Empty title="No findings" text="No Monitor or Action findings for this field yet." />}
+          {hist.map((h) => (
+            <View key={h.key} style={styles.card}>
+              <DateBox date={h.date} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T style={styles.kvLabel} numberOfLines={1}>{h.title}</T>
+                <T style={styles.bold}>{no2(h.act.id)}. {h.act.name}</T>
+                {h.note ? <T style={styles.meta}>{h.note}</T> : null}
+                <View style={styles.chips}>
+                  <Chip tone={STATUS[h.st].tone} dot label={STATUS[h.st].label} />
                 </View>
-              ))
-            )}
-          </Section>
+                {h.photos.length > 0 && <PhotoStrip photos={h.photos} readOnly />}
+              </View>
+            </View>
+          ))}
         </>
       )}
 
-      <DeleteBox label={'Delete field ' + field.code + ' and its follow-ups?'} button="Delete field" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
+      {tab === 'Follow-ups' && (
+        <>
+          <PageHead icon="flag-outline" title="Follow-ups" sub={'Field ' + field.code + ' · ' + open.length + ' open'} />
+          {fa.length === 0 && <Empty title="No follow-ups" text="Add them from a site visit." />}
+          {sortActions(fa).map((a) => (
+            <ActionRow key={a.id} a={a} onSave={p.onSaveAction} onDelete={p.onDeleteAction} showAct />
+          ))}
+        </>
+      )}
     </ScrollView>
   );
 }
@@ -3167,7 +2819,7 @@ function FieldLookup(p) {
           <CTA label="NEW VISIT HERE" icon="add" onPress={() => p.onNewVisit(estate.id, [field.id])} />
         </View>
         <View style={{ flex: 1 }}>
-          <CTA label="EDIT DATA" icon="create" color={C.muted} onPress={() => p.onOpenField(field.id, 'Profile')} />
+          <CTA label="EDIT DATA" icon="create" color={C.muted} onPress={() => p.onOpenField(field.id, 'Details')} />
         </View>
       </View>
 
@@ -3728,6 +3380,641 @@ function reportItems(result, es, fs) {
     }))
     .filter((a) => a.estateId);
   return { visits: visits, actions: actions };
+}
+
+// =====================================================
+// TIDY PAGES: small building blocks
+// =====================================================
+
+// Big square button on Home
+function Tile({ icon, title, sub, tone, badge, onPress }) {
+  return (
+    <Pressable style={styles.tile} onPress={onPress}>
+      <View style={[styles.tileIc, tone && TONE_BG[tone]]}>
+        <Ionicons name={icon} size={22} color={tone ? TONE_FG[tone] : C.accent} />
+      </View>
+      <Text style={styles.tileTitle} numberOfLines={1}>{title}</Text>
+      <T style={styles.tileSub} numberOfLines={1}>{sub}</T>
+      {badge ? (
+        <View style={styles.tileBadge}>
+          <T style={styles.badgeText}>{badge}</T>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// One row in a menu list: icon · title / sub · chip · >
+function MenuRow({ icon, title, sub, chip, tone, onPress, last }) {
+  return (
+    <Pressable style={[styles.menuRow, last && { borderBottomWidth: 0 }]} onPress={onPress}>
+      <View style={[styles.menuIc, tone && TONE_BG[tone]]}>
+        <Ionicons name={icon} size={19} color={tone ? TONE_FG[tone] : C.accent} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T style={styles.menuTitle}>{title}</T>
+        {sub ? <T style={styles.meta} numberOfLines={1}>{sub}</T> : null}
+      </View>
+      {chip ? <Chip tone={tone || 'muted'} label={chip} /> : null}
+      <Ionicons name="chevron-forward" size={18} color={C.muted} />
+    </Pressable>
+  );
+}
+
+function Menu({ children }) {
+  return <View style={styles.menu}>{children}</View>;
+}
+
+// Page title for a section page
+function PageHead({ icon, title, sub, right }) {
+  return (
+    <View style={styles.pageHead}>
+      <View style={styles.hic}>
+        <Ionicons name={icon} size={18} color={C.accent} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={styles.pageTitle}>{title}</Text>
+        {sub ? <T style={styles.meta}>{sub}</T> : null}
+      </View>
+      {right}
+    </View>
+  );
+}
+
+function SearchBox({ value, onChange, placeholder }) {
+  return (
+    <View style={styles.searchBox}>
+      <Ionicons name="search" size={18} color={C.muted} />
+      <TextInput
+        style={styles.searchIn}
+        placeholder={placeholder || 'Search'}
+        placeholderTextColor="#8A8F80"
+        value={value}
+        onChangeText={onChange}
+      />
+      {value ? (
+        <Pressable onPress={() => onChange('')} hitSlop={8}>
+          <Ionicons name="close-circle" size={18} color={C.muted} />
+        </Pressable>
+      ) : null}
+    </View>
+  );
+}
+
+// Row of filter chips: options = [{ key, label, n }]
+function FilterChips({ options, value, onChange }) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={styles.filterRow}>
+        {options.map((o) => {
+          const on = o.key === value;
+          return (
+            <Pressable key={o.key} style={[styles.filterChip, on && styles.filterChipOn]} onPress={() => onChange(o.key)}>
+              <T style={[styles.filterText, on && { color: '#fff' }]}>
+                {o.label}
+                {o.n !== undefined ? ' ' + o.n : ''}
+              </T>
+            </Pressable>
+          );
+        })}
+      </View>
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// ALL ALERTS (used by Home and the Alerts page)
+// =====================================================
+function buildAlerts(p) {
+  const { estates, fields, visits, actions } = p;
+  const fcode = (id) => (id ? (fields.find((f) => f.id === id) || {}).code || '?' : 'Estate');
+  const items = [];
+  actions
+    .filter((a) => a.status !== 'done' && isOverdue(a))
+    .forEach((a) => {
+      const e = estates.find((x) => x.id === a.estateId);
+      if (e) items.push({ key: a.id, kind: 'follow', go: () => p.onOpenEstate(e.id, 'Follow-ups'), tone: 'att', icon: 'time', title: e.name + ' · ' + fcode(a.fieldId), text: a.text, sub: 'Overdue since ' + showDate(a.due) + ' · PIC ' + (a.pic || '-') });
+    });
+  estates.forEach((e) => {
+    visits
+      .filter((x) => x.estateId === e.id)
+      .forEach((vv) => {
+        // only the latest visit per field counts
+        findings(vv)
+          .filter((x) => x.st === 'action' && latestFieldVisit(visits, x.fieldId) === vv)
+          .forEach((x) => {
+            items.push({ key: vv.id + x.fieldId + x.act.id, kind: 'activity', go: () => p.onOpenField(x.fieldId, 'Findings'), tone: 'att', icon: x.act.icon, title: e.name + ' · ' + fcode(x.fieldId), text: x.act.name, sub: x.note || (vv.title || 'Visit') + ' ' + showDate(vv.date) });
+          });
+      });
+    fields
+      .filter((f) => f.estateId === e.id)
+      .forEach((f) => {
+        const ys = yieldStatus(f);
+        if (ys === 'action' || ys === 'monitor') {
+          items.push({ key: f.id + 'y', kind: 'yield', go: () => p.onOpenField(f.id, 'Details'), tone: ys === 'action' ? 'att' : 'mon', icon: 'trending-down', title: e.name + ' · ' + f.code, text: 'Yield ' + pctText(yieldVar(f)) + ' vs budget', sub: f.ypAct + ' vs ' + f.ypBgt + ' mt/ha' });
+        }
+        const ca = costAlerts(f);
+        if (ca.length) {
+          items.push({ key: f.id + 'c', kind: 'cost', go: () => p.onOpenField(f.id, 'Cost'), tone: 'att', icon: 'cash', title: e.name + ' · ' + f.code, text: ca.length + ' cost over budget', sub: ca.slice(0, 3).join(', ') + (ca.length > 3 ? '…' : '') });
+        }
+      });
+    const pv = profitVar(e);
+    if (pv !== null && pv < 0) {
+      items.push({ key: e.id + 'p', kind: 'profit', go: () => p.onOpenEstate(e.id, 'Profit'), tone: 'mon', icon: 'trending-down', title: e.name, text: 'Profit below budget', sub: pctText(pv) + ' vs budget' });
+    }
+  });
+  const order = { follow: 0, activity: 1, yield: 2, cost: 3, profit: 4 };
+  return items.sort((a, b) => order[a.kind] - order[b.kind] || (a.tone === 'att' ? -1 : 1) - (b.tone === 'att' ? -1 : 1));
+}
+
+function AlertRow({ it }) {
+  return (
+    <Pressable style={styles.exRow} onPress={it.go}>
+      <View style={[styles.exIc, TONE_BG[it.tone]]}>
+        <Ionicons name={it.icon} size={19} color={TONE_FG[it.tone]} />
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <T style={styles.kvLabel} numberOfLines={1}>{it.title}</T>
+        <T style={styles.exTitle} numberOfLines={1}>{it.text}</T>
+        <T style={styles.meta} numberOfLines={1}>{it.sub}</T>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color={C.muted} />
+    </Pressable>
+  );
+}
+
+// =====================================================
+// HOME: summary + menu tiles + top alerts
+// =====================================================
+function HomeScreen(p) {
+  const { estates, fields, actions } = p;
+  const items = buildAlerts(p);
+  const open = actions.filter((a) => a.status !== 'done');
+  const overdue = open.filter(isOverdue);
+  const red = items.filter((x) => x.tone === 'att').length;
+  const withProfit = estates.filter((e) => num(e.profitAct) !== null);
+  const totalProfit = withProfit.reduce((s, e) => s + (num(e.profitAct) || 0), 0);
+
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <Hero
+        eyebrow="Estate field visits"
+        title={items.length ? items.length + ' items need attention' : 'All in order'}
+        sub={estates.length ? fields.length + ' fields in ' + estates.length + ' estates' : 'No data yet'}
+        stats={[
+          { ic: 'alert-circle', v: String(red), l: 'Action', tone: red ? 'att' : 'good' },
+          { ic: 'flag', v: String(open.length), l: 'Follow-ups', tone: open.length ? 'mon' : 'good' },
+          { ic: 'time', v: String(overdue.length), l: 'Overdue', tone: overdue.length ? 'att' : 'good' },
+        ]}
+      />
+
+      {estates.length === 0 ? (
+        <Section icon="rocket-outline" title="Get started">
+          <T style={styles.hint}>Upload your estate workbook, or load example data to try the app.</T>
+          <CTA label="UPLOAD DATA" icon="cloud-upload" onPress={() => p.onGo('upload')} />
+          <CTA label="LOAD EXAMPLE DATA" icon="download-outline" color={C.rnd} onPress={p.onExample} />
+        </Section>
+      ) : (
+        <View style={styles.tileGrid}>
+          <Tile icon="business" title="Estates" sub={estates.length + ' estates · ' + fields.length + ' fields'} onPress={() => p.onGo('estates')} />
+          <Tile icon="search" title="Lookup" sub="Region · SOU · Field" onPress={() => p.onGo('lookup')} />
+          <Tile icon="alert-circle" title="Attention" sub={red + ' action · ' + (items.length - red) + ' other'} tone={red ? 'att' : 'good'} badge={items.length || null} onPress={() => p.onGo('alerts')} />
+          <Tile icon="bar-chart" title="Profit" sub={withProfit.length ? "RM " + money(totalProfit) + "'000 YTD" : 'No profit data'} tone="gold" onPress={() => p.onGo('profit')} />
+          <Tile icon="cloud-upload" title="Upload" sub="Excel · CSV" tone="rnd" onPress={() => p.onGo('upload')} />
+          <Tile icon="options" title="Settings" sub="Limits · clear data" tone="muted" onPress={() => p.onGo('settings')} />
+        </View>
+      )}
+
+      {items.length > 0 && (
+        <View style={styles.exc}>
+          <View style={styles.excHead}>
+            <View style={[styles.hic, { backgroundColor: C.att }]}>
+              <Ionicons name="alert" size={17} color="#fff" />
+            </View>
+            <Text style={styles.excTitle}>TOP PRIORITIES</Text>
+            <View style={{ flex: 1 }} />
+            <Pressable onPress={() => p.onGo('alerts')} hitSlop={8}>
+              <T style={styles.link}>See all {items.length}</T>
+            </Pressable>
+          </View>
+          {items.slice(0, 4).map((it) => (
+            <AlertRow key={it.key} it={it} />
+          ))}
+        </View>
+      )}
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// ESTATES LIST
+// =====================================================
+function EstatesScreen(p) {
+  const { estates, fields, visits, actions } = p;
+  const [q, setQ] = useState('');
+  const [name, setName] = useState('');
+  const [adding, setAdding] = useState(false);
+  const list = estates.filter((e) => norm(e.name + e.region + e.sou).includes(norm(q)));
+  return (
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <PageHead icon="business-outline" title="Estates" sub={estates.length + ' estates · ' + fields.length + ' fields'} />
+      {estates.length > 4 && <SearchBox value={q} onChange={setQ} placeholder="Search estate, region, SOU" />}
+      {list.map((e) => {
+        const ef = fields.filter((f) => f.estateId === e.id);
+        const ey = estateYield(ef);
+        const oa = actions.filter((a) => a.estateId === e.id && a.status !== 'done').length;
+        const v = latestVisit(visits, e.id);
+        return (
+          <Pressable key={e.id} style={styles.card} onPress={() => p.onOpenEstate(e.id)}>
+            <View style={styles.estBox}>
+              <Text style={styles.estBoxText}>{e.name.slice(0, 2).toUpperCase()}</Text>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.rcardTitle}>{e.name}</Text>
+              <T style={styles.meta} numberOfLines={1}>
+                {[e.region, e.sou].filter(Boolean).join(' · ') || 'No region / SOU'}
+              </T>
+              <View style={styles.chips}>
+                <Chip tone="muted" label={ef.length + ' fields'} />
+                {ey && <Chip tone={ey.v < LIMITS.yieldAmber ? 'att' : 'good'} dot label={'Yield ' + pctText(ey.v)} />}
+                {oa > 0 && <Chip tone="rnd" label={oa + ' follow-up'} />}
+                {v && v.date ? <Chip tone="muted" label={'Visit ' + showDate(v.date)} /> : null}
+              </View>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={C.muted} />
+          </Pressable>
+        );
+      })}
+      {list.length === 0 && <Empty title="No estates" text={q ? 'Nothing matches your search.' : 'Upload data or add an estate.'} />}
+      {adding ? (
+        <Section icon="add-circle-outline" title="New estate">
+          <Field label="Estate name" full value={name} onChangeText={setName} placeholder="e.g. Sungai Mai" />
+          <View style={styles.row2}>
+            <Pressable style={styles.btnGhost} onPress={() => setAdding(false)}>
+              <T style={styles.bold}>Cancel</T>
+            </Pressable>
+            <Pressable
+              style={[styles.btnGhost, { backgroundColor: C.accent, borderColor: C.accent }]}
+              onPress={() => {
+                if (name.trim()) p.onAdd(name.trim());
+                setName('');
+                setAdding(false);
+              }}>
+              <T style={[styles.bold, { color: '#fff' }]}>Add</T>
+            </Pressable>
+          </View>
+        </Section>
+      ) : (
+        <Pressable style={styles.delRow} onPress={() => setAdding(true)}>
+          <Ionicons name="add-circle-outline" size={18} color={C.accent} />
+          <T style={styles.link}>Add an estate by hand</T>
+        </Pressable>
+      )}
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// ALERTS PAGE (with filters)
+// =====================================================
+function AlertsScreen(p) {
+  const items = buildAlerts(p);
+  const [kind, setKind] = useState('all');
+  const [q, setQ] = useState('');
+  const n = (k) => items.filter((x) => x.kind === k).length;
+  const opts = [
+    { key: 'all', label: 'All', n: items.length },
+    { key: 'follow', label: 'Overdue', n: n('follow') },
+    { key: 'activity', label: 'Activities', n: n('activity') },
+    { key: 'yield', label: 'Yield', n: n('yield') },
+    { key: 'cost', label: 'Cost', n: n('cost') },
+    { key: 'profit', label: 'Profit', n: n('profit') },
+  ].filter((o) => o.key === 'all' || o.n > 0);
+  const list = items.filter((x) => (kind === 'all' || x.kind === kind) && norm(x.title + x.text).includes(norm(q)));
+  return (
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      <PageHead icon="alert-circle-outline" title="Needs attention" sub={items.length + ' items · tap one to open it'} />
+      <FilterChips options={opts} value={kind} onChange={setKind} />
+      <SearchBox value={q} onChange={setQ} placeholder="Search estate, field, issue" />
+      <View style={styles.exc}>
+        {list.slice(0, 150).map((it) => (
+          <AlertRow key={it.key} it={it} />
+        ))}
+        {list.length === 0 && (
+          <View style={styles.exRow}>
+            <T style={styles.hint}>Nothing here.</T>
+          </View>
+        )}
+      </View>
+      {list.length > 150 && <T style={styles.hint}>Showing 150 of {list.length}. Use the filters or search.</T>}
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// PROFIT PAGE (all estates)
+// =====================================================
+function ProfitScreen(p) {
+  const { estates, fields } = p;
+  const list = estates.filter((e) => num(e.profitAct) !== null);
+  const maxP = list.reduce((m, e) => Math.max(m, num(e.profitAct) || 0, num(e.profitBgt) || 0), 1);
+  const total = list.reduce((s, e) => s + (num(e.profitAct) || 0), 0);
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <PageHead icon="bar-chart-outline" title="Profit by estate" sub={"RM'000 YTD · total RM " + money(total) + "'000"} />
+      {list.length === 0 && <Empty title="No profit data" text="Upload the workbook (P&L sheet) or type it in each estate's Profit page." />}
+      {list.length > 0 && (
+        <Section icon="podium-outline" title="Actual vs budget">
+          {list.map((e) => {
+            const pv = profitVar(e);
+            return (
+              <Bar
+                key={e.id}
+                label={e.name + '  ' + money(e.profitAct)}
+                value={num(e.profitAct) || 0}
+                max={maxP}
+                marker={num(e.profitBgt) === null ? undefined : num(e.profitBgt)}
+                color={pv !== null && pv < 0 ? C.att : C.good}
+                right={pctText(pv)}
+              />
+            );
+          })}
+          <T style={styles.hint}>Bar = actual. Black line = budget (if entered).</T>
+        </Section>
+      )}
+      <Menu>
+        {list.map((e, i) => {
+          const ey = estateYield(fields.filter((f) => f.estateId === e.id));
+          const perHa = ey ? (num(e.profitAct) * 1000) / ey.ha : null;
+          const pv = profitVar(e);
+          return (
+            <MenuRow
+              key={e.id}
+              icon="trending-up"
+              title={e.name}
+              sub={"RM " + money(e.profitAct) + "'000" + (perHa !== null ? ' · RM ' + money(perHa) + '/ha' : '')}
+              chip={pv === null ? 'No budget' : pctText(pv)}
+              tone={pv === null ? 'muted' : pv < 0 ? 'att' : 'good'}
+              last={i === list.length - 1}
+              onPress={() => p.onOpenEstate(e.id, 'Profit')}
+            />
+          );
+        })}
+      </Menu>
+    </ScrollView>
+  );
+}
+
+// =====================================================
+// ESTATE: menu page, and one page per section
+// =====================================================
+function EstateScreen(p) {
+  const { estate, fields, visits, actions, tab, onChange } = p;
+  const [confirm, setConfirm] = useState(false);
+  const [q, setQ] = useState('');
+  const [ff, setFf] = useState('all');
+  const [adding, setAdding] = useState(false);
+  const [nf, setNf] = useState({ code: '', year: '', ha: '' });
+  const ef = fields.filter((f) => f.estateId === estate.id);
+  const ev = visits.filter((v) => v.estateId === estate.id).sort((a, b) => b.date.localeCompare(a.date));
+  const ea = actions.filter((a) => a.estateId === estate.id);
+  const open = ea.filter((a) => a.status !== 'done');
+  const late = open.filter(isOverdue);
+  const pv = profitVar(estate);
+  const ey = estateYield(ef);
+  const ec = estateCost(ef);
+  const fcode = (id) => (id ? (fields.find((f) => f.id === id) || {}).code || '?' : 'Estate');
+  const yLow = ef.filter((f) => yieldStatus(f) === 'action' || yieldStatus(f) === 'monitor').length;
+  const cOver = ef.filter((f) => costAlerts(f).length).length;
+  const fieldRed = (f) => {
+    const lv = latestFieldVisit(visits, f.id);
+    return lv ? ACTIVITIES.filter((a) => actStatus(checkOf(lv, f.id), a) === 'action').length : 0;
+  };
+  const aRed = ef.filter((f) => fieldRed(f) > 0).length;
+
+  // ---------- menu page ----------
+  if (!tab) {
+    const go = (t) => p.onOpenEstate(estate.id, t);
+    return (
+      <ScrollView contentContainerStyle={styles.page}>
+        <Hero
+          mini
+          eyebrow={[estate.region, estate.sou].filter(Boolean).join(' · ') || 'Estate'}
+          title={estate.name}
+          sub={ef.length + ' fields · ' + (ey ? ey.ha.toFixed(1) + ' mature ha' : 'no area yet')}
+          stats={[
+            { ic: 'leaf', v: ey ? ey.act.toFixed(1) : '-', l: 'Yield mt/ha', tone: ey && ey.v < LIMITS.yieldAmber ? 'att' : 'good' },
+            { ic: 'flag', v: String(open.length), l: 'Follow-ups', tone: late.length ? 'att' : open.length ? 'mon' : 'good' },
+            { ic: 'trending-up', v: pctText(pv), l: 'Profit var', tone: pv !== null && pv < 0 ? 'att' : 'good' },
+          ]}
+        />
+        <Menu>
+          <MenuRow icon="grid-outline" title="Fields" sub={ef.length + ' fields · ' + yLow + ' yield below budget'} chip={aRed ? aRed + ' action' : null} tone={aRed ? 'att' : null} onPress={() => go('Fields')} />
+          <MenuRow icon="calendar-outline" title="Site visits" sub={ev.length ? ev.length + ' visits · latest ' + showDate(ev[0].date) : 'No visits yet'} onPress={() => go('Visits')} />
+          <MenuRow icon="flag-outline" title="Follow-ups" sub={open.length + ' open · ' + (ea.length - open.length) + ' done'} chip={late.length ? late.length + ' overdue' : null} tone={late.length ? 'att' : null} onPress={() => go('Follow-ups')} />
+          <MenuRow icon="cash-outline" title="Cost" sub={'12 elements · ' + costAlerts(ec).length + ' over budget (estate)'} chip={cOver ? cOver + ' fields over' : null} tone={cOver ? 'mon' : null} onPress={() => go('Cost')} />
+          <MenuRow icon="trending-up" title="Profit" sub={num(estate.profitAct) !== null ? "RM " + money(estate.profitAct) + "'000 YTD" : 'Not entered'} chip={pv !== null ? pctText(pv) : null} tone={pv !== null && pv < 0 ? 'att' : 'good'} onPress={() => go('Profit')} />
+          <MenuRow icon="information-circle-outline" title="Estate details" sub="Name · region · SOU · delete" last onPress={() => go('Details')} />
+        </Menu>
+        <CTA label="NEW SITE VISIT" icon="add" onPress={p.onNewVisit} />
+      </ScrollView>
+    );
+  }
+
+  // ---------- section pages ----------
+  const fieldList = ef
+    .filter((f) => norm(f.code).includes(norm(q)))
+    .filter((f) => {
+      if (ff === 'action') return fieldRed(f) > 0;
+      if (ff === 'yield') return yieldStatus(f) === 'action' || yieldStatus(f) === 'monitor';
+      if (ff === 'cost') return costAlerts(f).length > 0;
+      return true;
+    });
+
+  return (
+    <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
+      {tab === 'Fields' && (
+        <>
+          <PageHead icon="grid-outline" title="Fields" sub={estate.name + ' · ' + ef.length + ' fields · yield YTD mt/ha'} />
+          <SearchBox value={q} onChange={setQ} placeholder="Search field code, e.g. 2016A" />
+          <FilterChips
+            value={ff}
+            onChange={setFf}
+            options={[
+              { key: 'all', label: 'All', n: ef.length },
+              { key: 'action', label: 'Action', n: aRed },
+              { key: 'yield', label: 'Yield low', n: yLow },
+              { key: 'cost', label: 'Cost over', n: cOver },
+            ]}
+          />
+          {fieldList.length === 0 && <Empty title="No fields" text={ef.length ? 'Nothing matches.' : 'Add your fields below.'} />}
+          {fieldList.map((f) => {
+            const ys = yieldStatus(f);
+            const red = fieldRed(f);
+            const ca = costAlerts(f).length;
+            return (
+              <Pressable key={f.id} style={styles.card} onPress={() => p.onOpenField(f.id)}>
+                <View style={[styles.fieldBox, ys && TONE_BG[STATUS[ys].tone]]}>
+                  <Text style={[styles.fieldBoxText, ys && { color: TONE_FG[STATUS[ys].tone] }]} numberOfLines={1}>
+                    {f.code}
+                  </Text>
+                  <T style={styles.fieldBoxSub}>{f.year ? 'PY ' + f.year : ''}</T>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T style={styles.bold}>
+                    {f.ypAct || '-'} <T style={styles.meta}>vs {f.ypBgt || '-'} · {f.ha || '-'} ha</T>
+                  </T>
+                  <View style={styles.chips}>
+                    {ys && <Chip tone={STATUS[ys].tone} dot label={pctText(yieldVar(f))} />}
+                    {red > 0 && <Chip tone="att" label={red + ' action'} />}
+                    {ca > 0 && <Chip tone="mon" label={ca + ' cost'} />}
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.muted} />
+              </Pressable>
+            );
+          })}
+          {adding ? (
+            <Section icon="add-circle-outline" title="Add field">
+              <View style={styles.row2}>
+                <Field label="Field code" placeholder="e.g. 3C" autoCapitalize="characters" value={nf.code} onChangeText={(t) => setNf({ ...nf, code: t })} />
+                <Field label="Planted" placeholder="2008" keyboardType="numeric" value={nf.year} onChangeText={(t) => setNf({ ...nf, year: t })} />
+                <Field label="Mature ha" placeholder="0.0" keyboardType="numeric" value={nf.ha} onChangeText={(t) => setNf({ ...nf, ha: t })} />
+              </View>
+              <CTA
+                label="ADD FIELD"
+                icon="add"
+                onPress={() => {
+                  const code = nf.code.trim().toUpperCase();
+                  if (!code) return;
+                  p.onAddField({ id: newId(), estateId: estate.id, code: code, year: nf.year, ha: nf.ha, ypAct: '', ypBgt: '', ypLy: '', costs: {} });
+                  setNf({ code: '', year: '', ha: '' });
+                  setAdding(false);
+                }}
+              />
+            </Section>
+          ) : (
+            <Pressable style={styles.delRow} onPress={() => setAdding(true)}>
+              <Ionicons name="add-circle-outline" size={18} color={C.accent} />
+              <T style={styles.link}>Add a field by hand</T>
+            </Pressable>
+          )}
+        </>
+      )}
+
+      {tab === 'Visits' && (
+        <>
+          <PageHead icon="calendar-outline" title="Site visits" sub={estate.name + ' · ' + ev.length + ' visits'} />
+          <CTA label="NEW SITE VISIT" icon="add" onPress={p.onNewVisit} />
+          {ev.length === 0 && <Empty title="No visits yet" text="Start your first site visit." />}
+          {ev.map((v) => {
+            const all = findings(v);
+            const red = countIn(all, 'action');
+            const amber = countIn(all, 'monitor');
+            const ids = v.fieldIds || [];
+            return (
+              <Pressable key={v.id} style={styles.card} onPress={() => p.onOpenVisit(v.id)}>
+                <DateBox date={v.date} />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <T style={styles.bold} numberOfLines={1}>{v.title || 'Site visit'}</T>
+                  <T style={styles.meta} numberOfLines={1}>
+                    {ids.length > 5 ? ids.length + ' fields' : 'Fields ' + (ids.map(fcode).join(', ') || '-')}
+                  </T>
+                  <View style={styles.chips}>
+                    {red > 0 && <Chip tone="att" dot label={red + ' action'} />}
+                    {amber > 0 && <Chip tone="mon" dot label={amber + ' monitor'} />}
+                    {all.length > 0 && red + amber === 0 && <Chip tone="good" dot label="All good" />}
+                  </View>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={C.muted} />
+              </Pressable>
+            );
+          })}
+        </>
+      )}
+
+      {tab === 'Follow-ups' && (
+        <>
+          <PageHead icon="flag-outline" title="Follow-ups" sub={estate.name + ' · ' + open.length + ' open · ' + late.length + ' overdue'} />
+          <FilterChips
+            value={ff}
+            onChange={setFf}
+            options={[
+              { key: 'all', label: 'Open', n: open.length },
+              { key: 'late', label: 'Overdue', n: late.length },
+              { key: 'done', label: 'Done', n: ea.length - open.length },
+            ]}
+          />
+          {ea.length === 0 && <Empty title="No follow-ups" text="Add them from a site visit (Monitor or Action)." />}
+          {sortActions(ff === 'done' ? ea.filter((a) => a.status === 'done') : ff === 'late' ? late : open).map((a) => (
+            <ActionRow key={a.id} a={a} field={fcode(a.fieldId)} onSave={p.onSaveAction} onDelete={p.onDeleteAction} showAct />
+          ))}
+        </>
+      )}
+
+      {tab === 'Cost' && (
+        <>
+          <PageHead icon="cash-outline" title="Estate cost" sub="RM/ha YTD · field costs weighted by mature ha" />
+          <CostTable obj={ec} readOnly />
+          <CostChart obj={ec} />
+          <Section icon="grid-outline" title="Fields over budget" right={<T style={styles.hint}>{cOver} fields</T>}>
+            {ef.filter((f) => costAlerts(f).length).length === 0 && <T style={styles.hint}>All fields within budget.</T>}
+            {ef
+              .filter((f) => costAlerts(f).length)
+              .map((f) => (
+                <Pressable key={f.id} style={styles.readRow} onPress={() => p.onOpenField(f.id, 'Cost')}>
+                  <T style={[styles.bold, { width: 62 }]}>{f.code}</T>
+                  <T style={[styles.meta, { flex: 1 }]} numberOfLines={1}>{costAlerts(f).join(', ')}</T>
+                  <Ionicons name="chevron-forward" size={16} color={C.muted} />
+                </Pressable>
+              ))}
+          </Section>
+        </>
+      )}
+
+      {tab === 'Profit' && (
+        <>
+          <PageHead icon="trending-up" title="Estate profit" sub={"RM'000 YTD"} />
+          <View style={[styles.profitBox, pv !== null && pv < 0 ? TONE_BG.att : TONE_BG.good]}>
+            <T style={styles.meta}>{pv === null ? 'Profit YTD' : 'Variance vs budget'}</T>
+            <Text style={[styles.profitBig, { color: pv !== null && pv < 0 ? C.att : C.good }]}>
+              {pv === null ? (num(estate.profitAct) !== null ? 'RM ' + money(estate.profitAct) + 'k' : '-') : pctText(pv)}
+            </Text>
+            {pv !== null && <T style={styles.meta}>{'RM ' + money(num(estate.profitAct) - num(estate.profitBgt)) + "'000 vs budget"}</T>}
+            {ey && num(estate.profitAct) !== null && (
+              <T style={styles.meta}>Profit per mature ha: RM {money((num(estate.profitAct) * 1000) / ey.ha)}</T>
+            )}
+          </View>
+          <Section icon="create-outline" title="Edit">
+            <View style={styles.row2}>
+              <Field label="Actual" keyboardType="numeric" placeholder="0" value={estate.profitAct || ''} onChangeText={(t) => onChange({ ...estate, profitAct: t })} />
+              <Field label="Budget" keyboardType="numeric" placeholder="0" value={estate.profitBgt || ''} onChangeText={(t) => onChange({ ...estate, profitBgt: t })} />
+            </View>
+          </Section>
+        </>
+      )}
+
+      {tab === 'Details' && (
+        <>
+          <PageHead icon="information-circle-outline" title="Estate details" />
+          <Section>
+            <Field label="Estate name" full value={estate.name} onChangeText={(t) => onChange({ ...estate, name: t })} />
+            <View style={styles.row2}>
+              <Field label="Region" placeholder="e.g. STR" value={estate.region || ''} onChangeText={(t) => onChange({ ...estate, region: t })} />
+              <Field label="SOU" placeholder="e.g. SOU 20" value={estate.sou || ''} onChangeText={(t) => onChange({ ...estate, sou: t })} />
+            </View>
+            <View style={styles.kv}>
+              <KV label="Fields" value={String(ef.length)} />
+              <KV label="Mature ha" value={ey ? ey.ha.toFixed(1) : '-'} />
+              <KV label="Yield YTD" value={ey ? ey.act.toFixed(2) + ' mt/ha' : '-'} />
+              <KV label="Yield budget" value={ey ? ey.bgt.toFixed(2) + ' mt/ha' : '-'} />
+            </View>
+          </Section>
+          <DeleteBox label={'Delete ' + estate.name + ' with all fields, visits and actions?'} button="Delete estate" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
+        </>
+      )}
+    </ScrollView>
+  );
 }
 
 // ===== STYLES =====
@@ -4354,4 +4641,97 @@ const styles = StyleSheet.create({
     backgroundColor: C.bg,
   },
   switchRowOn: { borderColor: C.att, backgroundColor: C.attBg },
+  tileGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+  tile: {
+    width: '48.5%',
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.line,
+    padding: 12,
+    gap: 6,
+    ...SHADOW,
+  },
+  tileIc: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: C.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  tileTitle: { fontFamily: F.display, fontSize: 21, color: C.ink },
+  tileSub: { fontSize: 12, color: C.muted, fontFamily: F.semi },
+  tileBadge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    backgroundColor: C.att,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menu: {
+    backgroundColor: C.surface,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: C.line,
+    overflow: 'hidden',
+    ...SHADOW,
+  },
+  menuRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    borderBottomWidth: 1,
+    borderBottomColor: C.line,
+  },
+  menuIc: {
+    width: 38,
+    height: 38,
+    borderRadius: 11,
+    backgroundColor: C.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  menuTitle: { fontFamily: F.semi, fontSize: 15.5, color: C.ink },
+  pageHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  pageTitle: { fontFamily: F.display, fontSize: 26, color: C.ink, lineHeight: 28 },
+  searchBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+  },
+  searchIn: { flex: 1, paddingVertical: 10, fontSize: 15, fontFamily: F.body, color: C.ink },
+  filterRow: { flexDirection: 'row', gap: 6 },
+  filterChip: {
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: C.surface,
+  },
+  filterChipOn: { backgroundColor: C.accent, borderColor: C.accent },
+  filterText: { fontFamily: F.semi, fontSize: 13, color: C.ink },
+  card: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.line,
+    borderRadius: 14,
+    padding: 11,
+  },
 });
