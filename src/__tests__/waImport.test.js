@@ -38,6 +38,7 @@ test('import screen: pick, preview, import', async () => {
   expect(out.visits).toHaveLength(1);
   const obs = out.visits[0].fields.flatMap((f) => f.obs);
   expect(obs[0]).toMatchObject({ category: 'Pest & Disease', action: 'census and spray', photos: ['file:///kept/1.jpg'] });
+  expect(obs[0].title).toBe('Bagworm on lower fronds');
   expect(out.visits[0].fields.map((f) => f.code)).toEqual(['2016A', '9Z']);
-  expect(out.visits[0].fields[1].obs[0].issue).toBe('rat damage on fresh bunches');
+  expect(out.visits[0].fields[1].obs[0].issue).toBe('Rat damage on fresh bunches');
 });

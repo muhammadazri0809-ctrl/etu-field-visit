@@ -27,6 +27,7 @@ import { WaImportScreen } from './screens/WaImportScreen';
 import { UndoBar } from './components/SwipeRow';
 import { C, T, styles } from './theme';
 import { KEYS, useSavedState } from './useSavedState';
+import { dropDeletedMessageObs } from './logic/whatsapp';
 import { clearPhotos } from './storage';
 
 // =====================================================
@@ -85,6 +86,13 @@ function App() {
     });
     return () => sub.remove();
   }, [stack]);
+
+  // Clean up visits from older WhatsApp imports (deleted-message lines saved as observations)
+  useEffect(() => {
+    if (!sEtu.ready) return;
+    const clean = dropDeletedMessageObs(etu);
+    if (clean !== etu) setEtu(clean);
+  }, [sEtu.ready, etu, setEtu]);
 
   // Undo bar after deleting a visit, and short notices (e.g. after an import)
   const [undo, setUndo] = useState(null);
