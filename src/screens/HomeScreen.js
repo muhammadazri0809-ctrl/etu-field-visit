@@ -44,8 +44,8 @@ export function HomeScreen(p) {
     return (
       <ScrollView contentContainerStyle={styles.page}>
         <Hero eyebrow="ETU field visit" title="Welcome" sub="Start by uploading your estate workbook" stats={[{ ic: 'business', v: '0', l: 'Estates' }, { ic: 'grid', v: '0', l: 'Fields' }, { ic: 'walk', v: '0', l: 'Visits' }]} />
-        <CTA label="UPLOAD ESTATE DATA" icon="cloud-upload" color={C.rnd} onPress={() => p.onGo('upload')} />
-        <CTA label="LOAD EXAMPLE DATA" icon="download-outline" color={C.muted} onPress={p.onExample} />
+        <CTA label="UPLOAD ESTATE DATA" icon="cloud-upload" onPress={() => p.onGo('upload')} />
+        <CTA label="LOAD EXAMPLE DATA" icon="download-outline" secondary onPress={p.onExample} />
       </ScrollView>
     );
   }
@@ -75,9 +75,9 @@ export function HomeScreen(p) {
       {/* quick actions */}
       <CTA label="NEW FIELD VISIT" icon="add-circle" onPress={() => p.onNewEtu()} />
       <View style={styles.row2}>
-        <Pressable style={[styles.quick, { borderColor: C.rnd }]} onPress={() => p.onGo('upload')}>
-          <Ionicons name="cloud-upload" size={20} color={C.rnd} />
-          <T style={[styles.quickText, { color: C.rnd }]}>Upload data</T>
+        <Pressable style={[styles.quick, { borderColor: C.accent }]} onPress={() => p.onGo('upload')}>
+          <Ionicons name="cloud-upload" size={20} color={C.accent} />
+          <T style={[styles.quickText, { color: C.accent }]}>Upload data</T>
         </Pressable>
         <Pressable style={[styles.quick, { borderColor: C.att }]} onPress={() => p.onGo('alerts')}>
           <Ionicons name="podium" size={20} color={C.att} />
@@ -91,10 +91,10 @@ export function HomeScreen(p) {
           {pri.slice(0, 5).map((it, i) => (
             <Pressable key={it.key} style={[styles.priRow, { borderLeftColor: TONE_FG[it.tone] }]} onPress={() => p.onOpenField(it.f.id)}>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={styles.priTitle} numberOfLines={1}>
+                <T style={styles.priTitle} numberOfLines={2}>
                   {i + 1}. {it.e.name} · {it.f.code}
                 </T>
-                <T style={[styles.meta, { color: TONE_FG[it.tone] }]} numberOfLines={1}>
+                <T style={[styles.meta, { color: TONE_FG[it.tone] }]} numberOfLines={2}>
                   {(it.tLost >= 1 ? Math.round(it.tLost) + ' t below budget · ' : '') + it.reasons.map((r) => r.t).join(' · ')}
                 </T>
               </View>
@@ -114,7 +114,7 @@ export function HomeScreen(p) {
             <Pressable key={v.id} style={styles.card} onPress={() => p.onOpenEtu(v.id)}>
               <DateBox date={v.date} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={styles.priTitle} numberOfLines={1}>{(e.name || 'No estate') + ' Estate'}</T>
+                <T style={styles.priTitle} numberOfLines={2}>{(e.name || 'No estate') + ' Estate'}</T>
                 <View style={styles.chips}>
                   <Chip tone={v.status === 'done' ? 'good' : 'rnd'} dot label={v.status === 'done' ? 'Completed' : 'In progress'} />
                   <Chip tone="muted" label={(v.fields || []).length + ' fields'} />

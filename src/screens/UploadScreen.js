@@ -136,11 +136,11 @@ export function UploadScreen({ estates, fields, onImport, onDone }) {
           style={[styles.input, styles.pasteBox]}
           multiline
           placeholder={'Estate\tField\tMature ha\tYield Act ...'}
-          placeholderTextColor="#8A8F80"
+          placeholderTextColor={C.faint}
           value={paste}
           onChangeText={setPaste}
         />
-        <CTA label="READ PASTED DATA" icon="reader-outline" color={C.rnd} onPress={readPaste} />
+        <CTA label="READ PASTED DATA" icon="reader-outline" secondary onPress={readPaste} />
       </Section>
 
       {result && result.error && (
@@ -216,7 +216,7 @@ export function UploadScreen({ estates, fields, onImport, onDone }) {
           Needed: <T style={styles.bold}>Estate</T>, <T style={styles.bold}>Field</T>.
           {'\n'}Optional: Region, SOU, Planted, Mature ha, Yield Act, Yield Bgt, Yield LY, Profit Act, Profit Bgt (RM'000, estate level), and for each of the 12 cost elements {'"<Element> Act"'} and {'"<Element> Bgt"'} (RM/ha), e.g. "Manuring Act", "Manuring Bgt".
         </T>
-        <CTA label="SHARE TEMPLATE HEADER ROW" icon="share-outline" color={C.muted} onPress={shareTemplate} />
+        <CTA label="SHARE TEMPLATE HEADER ROW" icon="share-outline" secondary onPress={shareTemplate} />
       </Section>
     </ScrollView>
   );

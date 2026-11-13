@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { PhotoStrip } from '../components/PhotoStrip';
 import { Bar, CTA, Chip, DateBox, DeleteBox, Empty, Field, Hero, Menu, MenuRow, PageHead, Section, TONE_BG, TONE_FG } from '../components/ui';
 import { showDate, today } from '../logic/dates';
 import { ESTAT } from '../logic/etu';
-import { ACTIVITIES, COSTS, LIMITS, STATUS, actOf, actStatus, checkOf, costAlerts, costOf, isOverdue, latestFieldVisit, money, no2, num, pctText, sortActions, variance, yieldStatus, yieldVar } from '../logic/rules';
+import { ACTIVITIES, LIMITS, STATUS, actOf, actStatus, checkOf, costAlerts, isOverdue, latestFieldVisit, no2, num, pctText, sortActions, variance, yieldStatus, yieldVar } from '../logic/rules';
 import { C, T, styles } from '../theme';
+import { CostList } from '../components/CostList';
 
 // =====================================================
 // FIELD: profile & yield, 12 costs, history
@@ -122,9 +123,8 @@ export function FieldScreen(p) {
 
       {tab === 'Cost' && (
         <>
-          <PageHead icon="cash-outline" title={'Field ' + field.code + ' cost'} sub="RM/ha YTD · tap a number to edit" />
-          <CostTable obj={field} onChange={onChange} />
-          <CostChart obj={field} />
+          <PageHead icon="cash-outline" title={'Field ' + field.code + ' cost'} sub="RM/ha YTD · tap a row to edit" />
+          <CostList obj={field} onChange={onChange} />
         </>
       )}
 
@@ -136,7 +136,7 @@ export function FieldScreen(p) {
             <View key={h.key} style={styles.card}>
               <DateBox date={h.date} />
               <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={styles.kvLabel} numberOfLines={1}>{h.title}</T>
+                <T style={styles.kvLabel} numberOfLines={2}>{h.title}</T>
                 <T style={styles.bold}>{h.etu ? h.act.name : no2(h.act.id) + '. ' + h.act.name}</T>
                 {h.note ? <T style={styles.meta}>{h.note}</T> : null}
                 <View style={styles.chips}>
@@ -162,92 +162,6 @@ export function FieldScreen(p) {
   );
 }
 
-// ===== 12 cost elements table (field = edit, estate = read only) =====
-export function CostTable({ obj, onChange, readOnly }) {
-  const setCost = (i, k, v) => {
-    const costs = { ...(obj.costs || {}) };
-    costs[i] = { ...(costs[i] || {}), [k]: v };
-    onChange({ ...obj, costs: costs });
-  };
-  let ta = 0;
-  let tb = 0;
-  COSTS.forEach((n, i) => {
-    ta += num(costOf(obj, i).act) || 0;
-    tb += num(costOf(obj, i).bgt) || 0;
-  });
-  return (
-    <Section icon="cash-outline" title="12 cost elements" right={<T style={styles.hint}>RM/ha YTD</T>}>
-      <T style={styles.hint}>Red = more than {LIMITS.cost}% above budget.</T>
-      <View style={styles.costRow}>
-        <T style={[styles.costName, styles.kvLabel]}>Element</T>
-        <T style={[styles.costCell, styles.kvLabel]}>Actual</T>
-        <T style={[styles.costCell, styles.kvLabel]}>Budget</T>
-        <T style={[styles.costVar, styles.kvLabel]}>Var</T>
-      </View>
-      {COSTS.map((name, i) => {
-        const c = costOf(obj, i);
-        const v = variance(c.act, c.bgt);
-        const over = v !== null && v > LIMITS.cost;
-        return (
-          <View key={name} style={[styles.costRow, over && { backgroundColor: C.attBg }]}>
-            <T style={styles.costName} numberOfLines={2}>{name}</T>
-            {readOnly ? (
-              <>
-                <T style={[styles.costCell, styles.costRo]}>{money(c.act)}</T>
-                <T style={[styles.costCell, styles.costRo]}>{money(c.bgt)}</T>
-              </>
-            ) : (
-              <>
-                <TextInput style={[styles.input, styles.costCell, styles.costIn]} keyboardType="numeric" placeholder="0" placeholderTextColor="#8A8F80" value={c.act || ''} onChangeText={(t) => setCost(i, 'act', t)} />
-                <TextInput style={[styles.input, styles.costCell, styles.costIn]} keyboardType="numeric" placeholder="0" placeholderTextColor="#8A8F80" value={c.bgt || ''} onChangeText={(t) => setCost(i, 'bgt', t)} />
-              </>
-            )}
-            <T style={[styles.costVar, { color: over ? C.att : v !== null && v <= 0 ? C.good : C.muted }]}>
-              {pctText(v)}
-            </T>
-          </View>
-        );
-      })}
-      <View style={[styles.costRow, styles.totalRow]}>
-        <T style={[styles.costName, styles.bold]}>TOTAL</T>
-        <T style={[styles.costCell, styles.bold]}>{money(ta)}</T>
-        <T style={[styles.costCell, styles.bold]}>{money(tb)}</T>
-        <T style={[styles.costVar, styles.bold]}>{pctText(variance(ta, tb))}</T>
-      </View>
-    </Section>
-  );
-}
-
-export function CostChart({ obj }) {
-  let max = 1;
-  COSTS.forEach((n, i) => {
-    max = Math.max(max, num(costOf(obj, i).act) || 0, num(costOf(obj, i).bgt) || 0);
-  });
-  const rows = COSTS.map((name, i) => ({ name: name, c: costOf(obj, i) })).filter(
-    (r) => num(r.c.act) !== null
-  );
-  if (rows.length === 0) return null;
-  return (
-    <Section icon="bar-chart-outline" title="Actual vs budget">
-      {rows.map((r) => {
-        const v = variance(r.c.act, r.c.bgt);
-        return (
-          <Bar
-            key={r.name}
-            label={r.name}
-            value={num(r.c.act)}
-            max={max}
-            marker={num(r.c.bgt) === null ? undefined : num(r.c.bgt)}
-            color={v !== null && v > LIMITS.cost ? C.att : v !== null && v > 0 ? C.mon : C.good}
-            right={pctText(v)}
-          />
-        );
-      })}
-      <T style={styles.hint}>Bar = actual. Black line = budget. Red = over the limit.</T>
-    </Section>
-  );
-}
-
 // ===== One follow-up action (tick to close) =====
 export function ActionRow({ a, field, onSave, onDelete, showAct }) {
   const done = a.status === 'done';
@@ -264,7 +178,7 @@ export function ActionRow({ a, field, onSave, onDelete, showAct }) {
           {field ? '[' + field + '] ' : ''}
           {a.text}
         </T>
-        <T style={styles.meta} numberOfLines={1}>
+        <T style={styles.meta} numberOfLines={2}>
           {(showAct ? no2(a.actId) + '. ' + actOf(a.actId).name + ' · ' : '') + 'PIC ' + (a.pic || '-')}
         </T>
         <View style={styles.chips}>

@@ -34,4 +34,3 @@ export function newId() {
   return Date.now().toString() + Math.random().toString(36).slice(2, 5);
 }
 
-// ===== OIL PALM PLANTATION SCENE =====

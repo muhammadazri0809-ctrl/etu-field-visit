@@ -109,7 +109,7 @@ export function SettingsScreen({ settings, setSettings, counts, onClearAll, back
         })}
       </Section>
 
-      <CTA label="RESET LIMITS TO DEFAULT" icon="refresh" color={C.muted} onPress={() => setSettings({})} />
+      <CTA label="RESET LIMITS TO DEFAULT" icon="refresh" secondary onPress={() => setSettings({})} />
 
       <BackupSection data={backupData} onRestore={onRestore} />
 

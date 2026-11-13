@@ -5,8 +5,9 @@ import { CTA, Chip, DateBox, DeleteBox, Empty, Field, FilterChips, Hero, KV, Men
 import { newId, showDate } from '../logic/dates';
 import { etuCounts } from '../logic/etu';
 import { norm } from '../logic/importRows';
-import { ACTIVITIES, LIMITS, STATUS, actStatus, checkOf, costAlerts, countIn, estateCost, estateYield, findings, isOverdue, latestFieldVisit, money, num, pctText, profitVar, rmMil, sortActions, yieldStatus, yieldVar } from '../logic/rules';
-import { ActionRow, CostChart, CostTable } from './FieldScreen';
+import { ACTIVITIES, COSTS, LIMITS, STATUS, actStatus, checkOf, costAlerts, costOf, countIn, estateCost, estateYield, findings, isOverdue, latestFieldVisit, money, num, pctText, profitVar, rmMil, sortActions, variance, yieldStatus, yieldVar } from '../logic/rules';
+import { ActionRow } from './FieldScreen';
+import { CostList, VarPill } from '../components/CostList';
 import { C, T, styles } from '../theme';
 
 // =====================================================
@@ -54,6 +55,16 @@ export function EstateScreen(p) {
             { ic: 'trending-up', v: pctText(pv), l: 'Profit var', tone: pv !== null && pv < 0 ? 'att' : 'good' },
           ]}
         />
+        <EstateOverview
+          fields={ef}
+          ec={ec}
+          late={late}
+          fieldRed={fieldRed}
+          fcode={fcode}
+          onField={p.onOpenField}
+          onTab={go}
+        />
+        <T style={styles.groupLabel}>All sections</T>
         <Menu>
           <MenuRow icon="grid-outline" title="Fields" sub={ef.length + ' fields · ' + yLow + ' yield below budget'} chip={aRed ? aRed + ' action' : null} tone={aRed ? 'att' : null} onPress={() => go('Fields')} />
           <MenuRow icon="walk-outline" title="ETU field visits" sub={eEtu.length ? eEtu.length + ' visits · latest ' + showDate(eEtu[0].date) : 'No ETU visits yet'} chip={eAtt ? eAtt + ' attention' : null} tone={eAtt ? 'att' : null} onPress={p.onOpenEtu} />
@@ -152,7 +163,7 @@ export function EstateScreen(p) {
       {tab === 'Visits' && (
         <>
           <PageHead icon="calendar-outline" title="Assessments & checks" sub={estate.name + ' · PMU, agronomist and 10-activity checks'} />
-          <CTA label="NEW 10-ACTIVITY CHECK" icon="add" color={C.rnd} onPress={p.onNewVisit} />
+          <CTA label="NEW 10-ACTIVITY CHECK" icon="add" secondary onPress={p.onNewVisit} />
           {ev.length === 0 && <Empty title="No visits yet" text="Start your first site visit." />}
           {ev.map((v) => {
             const all = findings(v);
@@ -163,8 +174,8 @@ export function EstateScreen(p) {
               <Pressable key={v.id} style={styles.card} onPress={() => p.onOpenVisit(v.id)}>
                 <DateBox date={v.date} />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <T style={styles.bold} numberOfLines={1}>{v.title || 'Site visit'}</T>
-                  <T style={styles.meta} numberOfLines={1}>
+                  <T style={styles.bold} numberOfLines={2}>{v.title || 'Site visit'}</T>
+                  <T style={styles.meta} numberOfLines={2}>
                     {ids.length > 5 ? ids.length + ' fields' : 'Fields ' + (ids.map(fcode).join(', ') || '-')}
                   </T>
                   <View style={styles.chips}>
@@ -202,8 +213,7 @@ export function EstateScreen(p) {
       {tab === 'Cost' && (
         <>
           <PageHead icon="cash-outline" title="Estate cost" sub="RM/ha YTD · field costs weighted by mature ha" />
-          <CostTable obj={ec} readOnly />
-          <CostChart obj={ec} />
+          <CostList obj={ec} readOnly />
           <Section icon="grid-outline" title="Fields over budget" right={<T style={styles.hint}>{cOver} fields</T>}>
             {ef.filter((f) => costAlerts(f).length).length === 0 && <T style={styles.hint}>All fields within budget.</T>}
             {ef
@@ -211,7 +221,7 @@ export function EstateScreen(p) {
               .map((f) => (
                 <Pressable key={f.id} style={styles.readRow} onPress={() => p.onOpenField(f.id, 'Cost')}>
                   <T style={[styles.bold, { width: 62 }]}>{f.code}</T>
-                  <T style={[styles.meta, { flex: 1 }]} numberOfLines={1}>{costAlerts(f).join(', ')}</T>
+                  <T style={[styles.meta, { flex: 1 }]} numberOfLines={2}>{costAlerts(f).join(', ')}</T>
                   <Ionicons name="chevron-forward" size={16} color={C.muted} />
                 </Pressable>
               ))}
@@ -264,5 +274,102 @@ export function EstateScreen(p) {
         </>
       )}
     </ScrollView>
+  );
+}
+
+// ===== Estate overview: what needs attention, without opening each section =====
+function EstateOverview({ fields, ec, late, fieldRed, fcode, onField, onTab }) {
+  // worst fields: action findings, low yield or cost over the limit
+  const scored = fields
+    .map((f) => {
+      const yv = yieldVar(f);
+      const ys = yieldStatus(f);
+      const red = fieldRed(f);
+      const ca = costAlerts(f).length;
+      const score = red * 3 + (ys === 'action' ? 3 : ys === 'monitor' ? 1 : 0) + ca;
+      return { f, yv, ys, red, ca, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score || (a.yv === null ? 0 : a.yv) - (b.yv === null ? 0 : b.yv));
+  const costRows = COSTS.map((name, i) => ({ name, v: variance(costOf(ec, i).act, costOf(ec, i).bgt) }))
+    .filter((r) => r.v !== null && r.v > LIMITS.cost)
+    .sort((a, b) => b.v - a.v);
+
+  if (!scored.length && !costRows.length && !late.length) {
+    return (
+      <Section icon="checkmark-circle-outline" title="All on track">
+        <T style={styles.hint}>No fields need action, no cost element is over the limit and no follow-up is overdue.</T>
+      </Section>
+    );
+  }
+
+  const SeeAll = ({ tab, n }) => (
+    <Pressable onPress={() => onTab(tab)} hitSlop={8} style={styles.seeAll}>
+      <T style={styles.seeAllText}>{n > 3 ? 'See all ' + n : 'Open'}</T>
+      <Ionicons name="chevron-forward" size={14} color={C.accent} />
+    </Pressable>
+  );
+
+  return (
+    <Section icon="alert-circle-outline" title="Needs attention">
+      {scored.length > 0 && (
+        <View style={styles.ovGroup}>
+          <View style={styles.rowBetween}>
+            <T style={styles.kvLabel}>Fields · worst first</T>
+            <SeeAll tab="Fields" n={scored.length} />
+          </View>
+          {scored.slice(0, 3).map((x) => (
+            <Pressable key={x.f.id} style={styles.ovRow} onPress={() => onField(x.f.id)}>
+              <View style={[styles.ovCode, x.ys && TONE_BG[STATUS[x.ys].tone]]}>
+                <Text style={[styles.ovCodeText, x.ys && { color: TONE_FG[STATUS[x.ys].tone] }]} numberOfLines={1}>
+                  {x.f.code}
+                </Text>
+              </View>
+              <View style={[styles.chips, { flex: 1, marginTop: 0 }]}>
+                {x.yv !== null && (
+                  <Chip tone={x.ys ? STATUS[x.ys].tone : 'muted'} icon={x.yv < 0 ? 'arrow-down' : 'arrow-up'} label={'Yield ' + pctText(x.yv)} />
+                )}
+                {x.red > 0 && <Chip tone="att" icon="alert-circle" label={x.red + ' action'} />}
+                {x.ca > 0 && <Chip tone="mon" icon="cash" label={x.ca + ' cost over'} />}
+              </View>
+              <Ionicons name="chevron-forward" size={16} color={C.faint} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {costRows.length > 0 && (
+        <View style={styles.ovGroup}>
+          <View style={styles.rowBetween}>
+            <T style={styles.kvLabel}>Cost over +{LIMITS.cost}% (estate)</T>
+            <SeeAll tab="Cost" n={costRows.length} />
+          </View>
+          {costRows.slice(0, 3).map((r) => (
+            <Pressable key={r.name} style={styles.ovRow} onPress={() => onTab('Cost')}>
+              <T style={[styles.bold, { flex: 1 }]}>{r.name}</T>
+              <VarPill v={r.v} />
+            </Pressable>
+          ))}
+        </View>
+      )}
+      {late.length > 0 && (
+        <View style={styles.ovGroup}>
+          <View style={styles.rowBetween}>
+            <T style={styles.kvLabel}>Overdue follow-ups</T>
+            <SeeAll tab="Follow-ups" n={late.length} />
+          </View>
+          {late.slice(0, 3).map((a) => (
+            <Pressable key={a.id} style={styles.ovRow} onPress={() => onTab('Follow-ups')}>
+              <Ionicons name="time" size={18} color={C.att} />
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <T style={styles.bold} numberOfLines={2}>{a.text}</T>
+                <T style={[styles.meta, { color: C.att }]}>
+                  {fcode(a.fieldId)} · due {showDate(a.due)}
+                </T>
+              </View>
+            </Pressable>
+          ))}
+        </View>
+      )}
+    </Section>
   );
 }

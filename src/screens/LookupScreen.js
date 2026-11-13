@@ -5,10 +5,11 @@ import { Filters } from '../components/Filters';
 import { PhotoStrip } from '../components/PhotoStrip';
 import { Bar, CTA, Chip, Empty, Hero, Section, TONE_BG, TONE_FG } from '../components/ui';
 import { showDate } from '../logic/dates';
-import { ACTIVITIES, COSTS, LIMITS, STATUS, actStatus, checkOf, costAlerts, costOf, countIn, estateYield, latestFieldVisit, money, no2, num, pctText, profitVar, rmMil, sortActions, variance, yieldStatus, yieldVar } from '../logic/rules';
+import { ACTIVITIES, LIMITS, STATUS, actStatus, checkOf, countIn, estateYield, latestFieldVisit, no2, num, pctText, profitVar, rmMil, sortActions, yieldStatus, yieldVar } from '../logic/rules';
 import { estatesIn, fieldTriggers } from '../logic/triggers';
 import { ActionRow } from './FieldScreen';
 import { C, T, styles } from '../theme';
+import { CostList } from '../components/CostList';
 
 // =====================================================
 // LOOKUP: Region / SOU / Estate / Field views
@@ -98,7 +99,7 @@ function GroupLookup(p) {
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.rcardTitle}>{r.e.name}</Text>
-              <T style={styles.meta} numberOfLines={1}>
+              <T style={styles.meta} numberOfLines={2}>
                 {[r.e.sou, r.ef.length + ' fields', r.ey ? 'yield ' + pctText(r.ey.v) : null, 'profit ' + pctText(r.pv)].filter(Boolean).join(' · ')}
               </T>
               <View style={styles.chips}>
@@ -143,7 +144,6 @@ function FieldLookup(p) {
   const ck = lv ? checkOf(lv, field.id) : null;
   const fa = actions.filter((a) => a.fieldId === field.id);
   const maxY = Math.max(num(field.ypAct) || 0, num(field.ypBgt) || 0, num(field.ypLy) || 0, 1);
-  const over = costAlerts(field).length;
 
   return (
     <>
@@ -197,7 +197,7 @@ function FieldLookup(p) {
           <CTA label="NEW VISIT HERE" icon="add" onPress={() => p.onNewVisit(estate.id, [field.id])} />
         </View>
         <View style={{ flex: 1 }}>
-          <CTA label="EDIT DATA" icon="create" color={C.muted} onPress={() => p.onOpenField(field.id, 'Details')} />
+          <CTA label="EDIT DATA" icon="create" secondary onPress={() => p.onOpenField(field.id, 'Details')} />
         </View>
       </View>
 
@@ -213,9 +213,7 @@ function FieldLookup(p) {
         )}
       </Section>
 
-      <Section icon="cash-outline" title="Cost" right={<T style={[styles.hint, over && { color: C.att }]}>{over} of 12 over budget</T>}>
-        <CostMini obj={field} />
-      </Section>
+      <CostList obj={field} readOnly title="Cost" />
 
       <Section icon="calendar-outline" title={lv ? 'Latest visit · ' + showDate(lv.date) : 'Latest visit'}>
         {!lv ? (
@@ -250,28 +248,6 @@ function FieldLookup(p) {
 }
 
 // Compact list of the 12 costs (bar = actual, line = budget)
-function CostMini({ obj }) {
-  let max = 1;
-  COSTS.forEach((n, i) => {
-    max = Math.max(max, num(costOf(obj, i).act) || 0, num(costOf(obj, i).bgt) || 0);
-  });
-  const rows = COSTS.map((name, i) => ({ name: name, c: costOf(obj, i) })).filter((r) => num(r.c.act) !== null);
-  if (!rows.length) return <T style={styles.hint}>No cost data yet.</T>;
-  return rows.map((r) => {
-    const v = variance(r.c.act, r.c.bgt);
-    return (
-      <Bar
-        key={r.name}
-        label={r.name + '  ' + money(r.c.act)}
-        value={num(r.c.act)}
-        max={max}
-        marker={num(r.c.bgt) === null ? undefined : num(r.c.bgt)}
-        color={v !== null && v > LIMITS.cost ? C.att : v !== null && v > 0 ? C.mon : C.good}
-        right={pctText(v)}
-      />
-    );
-  });
-}
 
 function EstateLookup(p) {
   const { estate, ef, visits, actions } = p;
@@ -309,7 +285,7 @@ function EstateLookup(p) {
                 <T style={styles.fieldBoxSub}>{r.f.ha ? r.f.ha + ' ha' : ''}</T>
               </View>
               <View style={{ flex: 1, minWidth: 0 }}>
-                <T style={styles.bold} numberOfLines={1}>
+                <T style={styles.bold} numberOfLines={2}>
                   {r.t.length ? r.t[0].text : 'All clear'}
                 </T>
                 <View style={styles.chips}>

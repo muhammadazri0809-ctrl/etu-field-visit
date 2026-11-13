@@ -4,7 +4,7 @@ import React from 'react';
 import { C, T, styles } from '../theme';
 
 // =====================================================
-// BOTTOM NAVIGATION (always visible)
+// BOTTOM NAVIGATION: floating glass bar (hidden while filling in a visit)
 // =====================================================
 const NAV = [
   { k: 'home', label: 'Home', ic: 'home' },
@@ -16,7 +16,7 @@ const NAV = [
 
 export function BottomNav({ active, onGo, badge, bottom }) {
   return (
-    <View style={[styles.nav, { paddingBottom: (bottom || 0) + 6 }]}>
+    <View style={[styles.nav, { marginBottom: (bottom || 0) + 8 }]}>
       {NAV.map((n) => {
         const on = n.k === active;
         return (

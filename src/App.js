@@ -3,6 +3,7 @@ import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold, useFonts } from '
 import { PublicSans_400Regular, PublicSans_600SemiBold, PublicSans_700Bold } from '@expo-google-fonts/public-sans';
 import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, BackHandler, StatusBar, View } from 'react-native';
+import { Backdrop } from './components/Backdrop';
 import { BottomNav } from './components/BottomNav';
 import { TopBar } from './components/ui';
 import { newId, showDate, today } from './logic/dates';
@@ -379,9 +380,13 @@ function App() {
     );
   }
 
+  // While filling in a visit, hide the bottom bar: more room, no accidental tab switch
+  const inVisit = ['visit', 'etuvisit', 'etufield', 'etuobs'].includes(screen.name);
+
   return (
     <View style={styles.app}>
-      <StatusBar barStyle="dark-content" backgroundColor={C.skyTop} />
+      <Backdrop />
+      <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
       <TopBar sub={sub} onBack={back} top={insets.top} />
       {storeError ? (
         <View style={styles.storeWarn}>
@@ -389,7 +394,16 @@ function App() {
         </View>
       ) : null}
       <View style={{ flex: 1 }}>{body}</View>
-      <BottomNav bottom={insets.bottom} active={stack[0].name} onGo={goTab} badge={actions.filter((a) => a.status !== 'done' && isOverdue(a)).length} />
+      {inVisit ? (
+        <View style={{ height: insets.bottom }} />
+      ) : (
+        <BottomNav
+          bottom={insets.bottom}
+          active={stack[0].name}
+          onGo={goTab}
+          badge={actions.filter((a) => a.status !== 'done' && isOverdue(a)).length}
+        />
+      )}
     </View>
   );
 }

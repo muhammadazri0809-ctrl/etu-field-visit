@@ -78,7 +78,7 @@ function PriorityRow({ it, rank, onPress }) {
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <T style={styles.kvLabel} numberOfLines={1}>{it.e.name}</T>
-        <T style={styles.exTitle} numberOfLines={1}>
+        <T style={styles.exTitle} numberOfLines={2}>
           Field {it.f.code}
           {it.tLost >= 1 ? <T style={[styles.meta, { color: C.att }]}>{'  ' + Math.round(it.tLost).toLocaleString('en-MY') + ' t below budget'}</T> : null}
         </T>
@@ -101,8 +101,8 @@ function EstateItemRow({ it }) {
       </View>
       <View style={{ flex: 1, minWidth: 0 }}>
         <T style={styles.kvLabel} numberOfLines={1}>{it.e.name + ' · estate'}</T>
-        <T style={styles.exTitle} numberOfLines={1}>{it.text}</T>
-        <T style={styles.meta} numberOfLines={1}>{it.sub}</T>
+        <T style={styles.exTitle} numberOfLines={2}>{it.text}</T>
+        <T style={styles.meta} numberOfLines={2}>{it.sub}</T>
       </View>
       <Ionicons name="chevron-forward" size={18} color={C.muted} />
     </Pressable>

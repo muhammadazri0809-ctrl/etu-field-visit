@@ -94,7 +94,7 @@ export function EtuVisitScreen(p) {
         <View style={styles.visitHead}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <T style={styles.sumEyebrow}>ETU field visit · {showDate(visit.date)}</T>
-            <Text style={styles.pageTitle} numberOfLines={1}>{e ? e.name + ' Estate' : 'New field visit'}</Text>
+            <Text style={styles.pageTitle} numberOfLines={2}>{e ? e.name + ' Estate' : 'New field visit'}</Text>
           </View>
           <Chip tone={done ? 'good' : 'rnd'} dot label={done ? 'Completed' : 'In progress'} />
         </View>
@@ -166,7 +166,7 @@ export function EtuVisitScreen(p) {
             })}
             {list.length > 60 && <T style={styles.hint}>Showing 60 of {list.length}. Type to narrow down.</T>}
             <View style={styles.row2}>
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Field not listed? Type code" placeholderTextColor="#8A8F80" autoCapitalize="characters" value={code} onChangeText={setCode} />
+              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Field not listed? Type code" placeholderTextColor={C.faint} autoCapitalize="characters" value={code} onChangeText={setCode} />
               <Pressable style={styles.addBtn} onPress={addCode}>
                 <Ionicons name="add" size={24} color="#fff" />
               </Pressable>
@@ -207,7 +207,7 @@ export function EtuVisitScreen(p) {
                       {topics.slice(0, 4).map((x) => (
                         <View key={x.t} style={styles.topic}>
                           <Ionicons name={catOf(x.o.category).ic} size={13} color={catOf(x.o.category).c} />
-                          <T style={styles.topicText} numberOfLines={1}>{x.t}</T>
+                          <T style={styles.topicText} numberOfLines={2}>{x.t}</T>
                         </View>
                       ))}
                     </View>
@@ -246,7 +246,7 @@ export function EtuVisitScreen(p) {
               )}
             </Section>
             <CTA label={done ? 'REOPEN VISIT' : 'MARK VISIT AS COMPLETED'} icon={done ? 'refresh' : 'checkmark-done'} color={done ? C.muted : C.good} onPress={() => set('status', done ? 'draft' : 'done')} />
-            <CTA label="SHARE REPORT (WHATSAPP)" icon="share-social" color={C.rnd} onPress={share} />
+            <CTA label="SHARE REPORT (WHATSAPP)" icon="share-social" secondary onPress={share} />
             <DeleteBox label="Delete this visit and all its observations and photos?" button="Delete visit" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
           </>
         )}

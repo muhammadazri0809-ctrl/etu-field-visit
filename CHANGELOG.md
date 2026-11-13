@@ -2,6 +2,19 @@
 
 ## 1.1.0 (versionCode 2)
 
+New look: frosted glass on a nature background
+- Soft leaf / river / sun / moss background; cards are frosted glass with a bright rim.
+- Nature colours for status: terracotta = Action, amber = Monitor, moss = Good,
+  river blue = R&D. Status is always shown with an icon or word, not colour only.
+- Compact top bar (back + where you are) - about 100 px more room on every page.
+- Floating glass bottom bar; hidden while filling in a visit.
+- Cost: the 4-column table is now one row per element with a bar centred on budget,
+  worst first. Tap a row to edit in a large bottom sheet (Previous / Next).
+- Estate page shows "Needs attention" (worst fields, costs over the limit,
+  overdue follow-ups) before the section list.
+- Stat tiles, menu rows and lists no longer cut text off with "...".
+- One button style: green = main action, glass = second action (no more blue/grey).
+
 Data safety
 - Photos are copied into the app's own folder (before, they stayed in the
   phone's cache folder, which Android can empty, so photos could disappear).

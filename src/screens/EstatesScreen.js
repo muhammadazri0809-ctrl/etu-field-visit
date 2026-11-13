@@ -91,7 +91,7 @@ export function EstatesScreen(p) {
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.rcardTitle}>{e.name}</Text>
-              <T style={styles.meta} numberOfLines={1}>
+              <T style={styles.meta} numberOfLines={2}>
                 {[e.region, e.sou].filter(Boolean).join(' · ') || 'No region / SOU'}
               </T>
               <View style={styles.chips}>

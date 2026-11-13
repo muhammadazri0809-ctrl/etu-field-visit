@@ -53,8 +53,8 @@ export function EtuListScreen(p) {
           <Pressable key={v.id} style={styles.card} onPress={() => p.onOpen(v.id)}>
             <DateBox date={v.date} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.rcardTitle} numberOfLines={1}>{(e.name || 'No estate') + ' Estate'}</Text>
-              <T style={styles.meta} numberOfLines={1}>{[e.region, e.sou, v.visitedBy].filter(Boolean).join(' · ') || 'Tap to add details'}</T>
+              <Text style={styles.rcardTitle} numberOfLines={2}>{(e.name || 'No estate') + ' Estate'}</Text>
+              <T style={styles.meta} numberOfLines={2}>{[e.region, e.sou, v.visitedBy].filter(Boolean).join(' · ') || 'Tap to add details'}</T>
               <View style={styles.chips}>
                 <Chip tone={v.status === 'done' ? 'good' : 'rnd'} dot label={v.status === 'done' ? 'Completed' : 'In progress'} />
                 <Chip tone="muted" label={(v.fields || []).length + ' fields'} />

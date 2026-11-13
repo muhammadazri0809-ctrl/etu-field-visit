@@ -17,7 +17,7 @@ export function Dropdown({ label, value, options, onChange, placeholder }) {
     <View style={styles.field}>
       {label ? <T style={styles.label}>{label}</T> : null}
       <Pressable style={[styles.input, styles.ddBtn]} onPress={() => setOpen(true)}>
-        <T style={[styles.ddText, !sel && { color: '#8A8F80' }]} numberOfLines={1}>
+        <T style={[styles.ddText, !sel && { color: C.faint }]} numberOfLines={1}>
           {sel ? sel.label : placeholder || 'Select'}
         </T>
         <Ionicons name="chevron-down" size={18} color={C.accent} />
@@ -30,7 +30,7 @@ export function Dropdown({ label, value, options, onChange, placeholder }) {
               <TextInput
                 style={styles.input}
                 placeholder="Search"
-                placeholderTextColor="#8A8F80"
+                placeholderTextColor={C.faint}
                 value={q}
                 onChangeText={setQ}
               />

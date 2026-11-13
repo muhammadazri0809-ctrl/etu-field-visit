@@ -1,108 +1,98 @@
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import Svg, { Defs, LinearGradient, Rect, Stop } from 'react-native-svg';
 import React from 'react';
-import { Scene } from './Scene';
 import { MONTHS } from '../logic/dates';
 import { STATUS } from '../logic/rules';
 import { C, T, styles } from '../theme';
 
 // ===== REUSABLE: top bar =====
+// Home tabs: logo + app name. Inner pages: back button + where you are (one line).
 export function TopBar({ sub, onBack, alerts, onBell, top }) {
   return (
     <View style={[styles.top, top ? { paddingTop: Math.max(top + 6, 14) } : null]}>
       {onBack ? (
-        <Pressable style={styles.iconBtn} onPress={onBack} hitSlop={8}>
+        <Pressable style={styles.iconBtn} onPress={onBack} hitSlop={8} accessibilityLabel="Back">
           <Ionicons name="arrow-back" size={20} color={C.ink} />
         </Pressable>
       ) : (
         <View style={styles.logo}>
-          <Ionicons name="leaf" size={22} color="#fff" />
+          <Ionicons name="leaf" size={20} color="#fff" />
         </View>
       )}
       <View style={{ flex: 1, minWidth: 0 }}>
-        <Text style={styles.topTitle} numberOfLines={1}>
-          ETU <Text style={styles.topTitleB}>Field Visit</Text>
-        </Text>
-        <T style={styles.topSub} numberOfLines={1}>
-          {sub}
-        </T>
+        {onBack ? (
+          <T style={styles.crumb} numberOfLines={1}>
+            {sub}
+          </T>
+        ) : (
+          <>
+            <Text style={styles.topTitle} numberOfLines={1}>
+              ETU <Text style={styles.topTitleB}>Field Visit</Text>
+            </Text>
+            <T style={styles.topSub} numberOfLines={1}>
+              {sub}
+            </T>
+          </>
+        )}
       </View>
       {onBell ? (
-      <Pressable style={styles.iconBtn} onPress={onBell}>
-        <Ionicons name="notifications-outline" size={20} color={C.ink} />
-        {alerts > 0 && (
-          <View style={styles.badge}>
-            <T style={styles.badgeText}>{alerts}</T>
-          </View>
-        )}
-      </Pressable>
+        <Pressable style={styles.iconBtn} onPress={onBell}>
+          <Ionicons name="notifications-outline" size={20} color={C.ink} />
+          {alerts > 0 && (
+            <View style={styles.badge}>
+              <T style={styles.badgeText}>{alerts}</T>
+            </View>
+          )}
+        </Pressable>
       ) : null}
     </View>
   );
 }
 
-// ===== REUSABLE: hero card with plantation =====
+// ===== REUSABLE: glass hero card =====
+// stats: [{ v, l, ic, tone }] - tiles wrap to a new line, labels are never cut off
 export function Hero({ eyebrow, title, sub, stats, mini }) {
   return (
-    <View style={[styles.hero, mini && styles.heroMini]}>
-      <Svg style={StyleSheet.absoluteFill} width="100%" height="100%">
-        <Defs>
-          <LinearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor={C.sky1} />
-            <Stop offset="1" stopColor={C.sky2} />
-          </LinearGradient>
-        </Defs>
-        <Rect width="100%" height="100%" fill="url(#sky)" />
-      </Svg>
-      <Scene height={mini ? 84 : 112} />
+    <View style={styles.hero}>
       <View style={styles.heroTx}>
-        <T style={styles.eyebrowGold}>{eyebrow}</T>
-        <Text style={[styles.heroTitle, mini && styles.heroTitleMini]}>
-          {title}
-        </Text>
+        {eyebrow ? <T style={styles.eyebrowGold}>{eyebrow}</T> : null}
+        <Text style={[styles.heroTitle, mini && styles.heroTitleMini]}>{title}</Text>
         {sub ? <T style={styles.hint}>{sub}</T> : null}
       </View>
-      <View style={styles.heroStats}>
-        {stats.map((s) => (
-          <View key={s.l} style={styles.hstat}>
-            <View style={[styles.sic, s.tone && TONE_BG[s.tone]]}>
-              <Ionicons
-                name={s.ic}
-                size={15}
-                color={s.tone ? TONE_FG[s.tone] : C.accent}
-              />
+      {stats && stats.length ? (
+        <View style={styles.heroStats}>
+          {stats.map((s) => (
+            <View key={s.l} style={styles.hstat}>
+              <View style={styles.sic}>
+                {s.ic ? <Ionicons name={s.ic} size={14} color={s.tone ? TONE_FG[s.tone] : C.accent} /> : null}
+                <Text style={[styles.hstatVal, s.tone && s.tone !== 'muted' && { color: TONE_FG[s.tone] }]}>{s.v}</Text>
+              </View>
+              <T style={styles.hstatLbl}>{s.l}</T>
             </View>
-            <View style={{ flexShrink: 1 }}>
-              <Text style={[styles.hstatVal, mini && { fontSize: 19 }]}>
-                {s.v}
-              </Text>
-              <T style={styles.hstatLbl} numberOfLines={1}>
-                {s.l}
-              </T>
-            </View>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      ) : (
+        <View style={{ height: 14 }} />
+      )}
     </View>
   );
 }
 
 export const TONE_BG = {
-  att: { backgroundColor: '#F5E4DC' },
-  good: { backgroundColor: '#E4EEDB' },
-  mon: { backgroundColor: '#F5EAD2' },
-  rnd: { backgroundColor: '#E2EBF1' },
-  gold: { backgroundColor: '#F3E9CF' },
-  muted: { backgroundColor: '#EBE7DA' },
+  att: { backgroundColor: C.attBg },
+  good: { backgroundColor: C.goodBg },
+  mon: { backgroundColor: C.monBg },
+  rnd: { backgroundColor: C.rndBg },
+  gold: { backgroundColor: C.goldSoft },
+  muted: { backgroundColor: C.sunk },
 };
 export const TONE_FG = {
-  att: '#B4533C',
-  good: '#4F7D3C',
-  mon: '#A8741F',
-  rnd: '#4A7391',
-  gold: '#A8812C',
-  muted: '#4F564A',
+  att: C.att,
+  good: C.good,
+  mon: C.mon,
+  rnd: C.rnd,
+  gold: C.gold,
+  muted: C.muted,
 };
 
 // ===== REUSABLE: section card with icon title =====
@@ -125,9 +115,10 @@ export function Section({ icon, title, right, children, style }) {
 }
 
 // ===== REUSABLE: status chip with dot =====
-export function Chip({ tone, label, dot }) {
+export function Chip({ tone, label, dot, icon }) {
   return (
     <View style={[styles.chip, TONE_BG[tone || 'muted']]}>
+      {icon ? <Ionicons name={icon} size={13} color={TONE_FG[tone || 'muted']} /> : null}
       {dot && (
         <View
           style={[
@@ -150,7 +141,7 @@ export function Field({ label, full, multiline, ...props }) {
       <T style={styles.label}>{label}</T>
       <TextInput
         style={[styles.input, multiline && styles.inputMulti]}
-        placeholderTextColor="#8A8F80"
+        placeholderTextColor={C.faint}
         multiline={multiline}
         {...props}
       />
@@ -159,13 +150,14 @@ export function Field({ label, full, multiline, ...props }) {
 }
 
 // ===== REUSABLE: big action button =====
-export function CTA({ label, icon, onPress, color }) {
+// secondary = frosted glass button with green text (for the less important action)
+export function CTA({ label, icon, onPress, color, secondary }) {
   return (
     <Pressable
-      style={[styles.cta, color && { backgroundColor: color }]}
+      style={[styles.cta, secondary && styles.ctaSecondary, color && { backgroundColor: color }]}
       onPress={onPress}>
-      <Ionicons name={icon} size={20} color="#fff" />
-      <Text style={styles.ctaText}>{label}</Text>
+      <Ionicons name={icon} size={20} color={secondary ? C.accent : '#fff'} />
+      <Text style={[styles.ctaText, secondary && { color: C.accent }]}>{label}</Text>
     </Pressable>
   );
 }
@@ -212,7 +204,7 @@ export function Bar({ label, value, max, color, right, marker }) {
   return (
     <View style={{ gap: 3 }}>
       <View style={styles.barHead}>
-        <T style={styles.barLabel} numberOfLines={1}>
+        <T style={styles.barLabel} numberOfLines={2}>
           {label}
         </T>
         <T style={[styles.barRight, { color: color }]}>{right}</T>
@@ -265,9 +257,7 @@ export function KV({ label, value }) {
   return (
     <View style={styles.kvItem}>
       <T style={styles.kvLabel}>{label}</T>
-      <T style={styles.kvValue} numberOfLines={1}>
-        {value}
-      </T>
+      <T style={styles.kvValue}>{value}</T>
     </View>
   );
 }
@@ -284,12 +274,14 @@ export function MenuRow({ icon, title, sub, chip, tone, onPress, last }) {
       <View style={[styles.menuIc, tone && TONE_BG[tone]]}>
         <Ionicons name={icon} size={19} color={tone ? TONE_FG[tone] : C.accent} />
       </View>
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <T style={styles.menuTitle}>{title}</T>
-        {sub ? <T style={styles.meta} numberOfLines={1}>{sub}</T> : null}
+      <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+        <View style={styles.menuHead}>
+          <T style={styles.menuTitle}>{title}</T>
+          {chip ? <Chip tone={tone || 'muted'} label={chip} /> : null}
+        </View>
+        {sub ? <T style={styles.meta} numberOfLines={2}>{sub}</T> : null}
       </View>
-      {chip ? <Chip tone={tone || 'muted'} label={chip} /> : null}
-      <Ionicons name="chevron-forward" size={18} color={C.muted} />
+      <Ionicons name="chevron-forward" size={18} color={C.faint} />
     </Pressable>
   );
 }
@@ -321,7 +313,7 @@ export function SearchBox({ value, onChange, placeholder }) {
       <TextInput
         style={styles.searchIn}
         placeholder={placeholder || 'Search'}
-        placeholderTextColor="#8A8F80"
+        placeholderTextColor={C.faint}
         value={value}
         onChangeText={onChange}
       />

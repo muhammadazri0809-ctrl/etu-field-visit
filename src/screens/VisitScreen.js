@@ -111,7 +111,7 @@ export function VisitScreen(p) {
           })}
         </View>
         <View style={styles.row2}>
-          <TextInput style={[styles.input, { flex: 1 }]} placeholder="New field code" placeholderTextColor="#8A8F80" autoCapitalize="characters" value={newCode} onChangeText={setNewCode} />
+          <TextInput style={[styles.input, { flex: 1 }]} placeholder="New field code" placeholderTextColor={C.faint} autoCapitalize="characters" value={newCode} onChangeText={setNewCode} />
           <Pressable style={styles.addBtn} onPress={quickAdd}>
             <Ionicons name="add" size={24} color="#fff" />
           </Pressable>
@@ -168,7 +168,7 @@ export function VisitScreen(p) {
                     <Ionicons name={act.icon} size={18} color={tone ? TONE_FG[tone] : C.accent} />
                   </View>
                   <View style={{ flex: 1, minWidth: 0 }}>
-                    <T style={styles.bold} numberOfLines={1}>{no2(act.id)}. {act.name}</T>
+                    <T style={styles.bold} numberOfLines={2}>{no2(act.id)}. {act.name}</T>
                     <View style={styles.chips}>
                       {st ? (
                         <Chip tone={tone} dot label={STATUS[st].label + (manual ? '' : ' (auto)')} />
@@ -208,7 +208,7 @@ export function VisitScreen(p) {
                               ))}
                             </View>
                           ) : (
-                            <TextInput style={[styles.input, styles.readIn]} keyboardType="numeric" placeholder={r.unit} placeholderTextColor="#8A8F80" value={raw || ''} onChangeText={(t) => setReading(r.id, t)} />
+                            <TextInput style={[styles.input, styles.readIn]} keyboardType="numeric" placeholder={r.unit} placeholderTextColor={C.faint} value={raw || ''} onChangeText={(t) => setReading(r.id, t)} />
                           )}
                           <View style={[styles.resDot, { backgroundColor: res ? TONE_FG[STATUS[res].tone] : C.line }]} />
                         </View>
@@ -233,7 +233,7 @@ export function VisitScreen(p) {
                             <Field label="PIC" placeholder="Name" value={form.pic} onChangeText={(t) => setForm({ ...form, pic: t })} />
                             <DateField label="Due date" value={form.due} onChange={(d) => setForm({ ...form, due: d })} />
                           </View>
-                          <CTA label="ADD FOLLOW-UP" icon="flag" color={C.rnd} onPress={() => addFollowUp(act)} />
+                          <CTA label="ADD FOLLOW-UP" icon="flag" secondary onPress={() => addFollowUp(act)} />
                         </View>
                       </>
                     )}
