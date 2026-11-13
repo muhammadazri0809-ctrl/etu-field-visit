@@ -246,6 +246,19 @@ export const styles = StyleSheet.create({
   ovCodeText: { fontFamily: F.displayBold, fontSize: 18, color: C.accent },
   seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   seeAllText: { fontFamily: F.bold, fontSize: 13, color: C.accent },
+  // ----- swipe to delete -----
+  swipeWrap: { position: 'relative' },
+  swipeAct: { position: 'absolute', top: 0, bottom: 0, width: 96, padding: 2 },
+  swipeBtn: { flex: 1, backgroundColor: C.att, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  swipeText: { color: '#fff', fontFamily: F.bold, fontSize: 13 },
+  swipeCard: { backgroundColor: 'rgba(250,252,248,0.94)' },
+  undoBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(18,41,27,0.92)', marginHorizontal: 12, marginBottom: 8, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14 },
+  undoText: { flex: 1, color: '#fff', fontFamily: F.semi, fontSize: 14 },
+  undoBtn: { color: '#BFE3C3', fontFamily: F.bold, fontSize: 15, letterSpacing: 0.5 },
+  // ----- whatsapp import -----
+  waField: { gap: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line },
+  waObs: { gap: 6, ...WELL, borderRadius: 14, padding: 10 },
+  thumbMissing: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: C.line },
   // ----- cost list -----
   costSum: { flexDirection: 'row', alignItems: 'center', gap: 12, ...WELL, borderRadius: 16, padding: 12 },
   costSumVal: { fontFamily: F.displayBold, fontSize: 30, color: C.ink, lineHeight: 33 },

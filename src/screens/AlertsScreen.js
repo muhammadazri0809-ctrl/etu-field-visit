@@ -115,56 +115,55 @@ function EstateItemRow({ it }) {
 export function AlertsScreen(p) {
   const pri = fieldPriorities(p);
   const est = estatePriorities(p);
-  const [kind, setKind] = useState('fields');
-  const [ee, setEe] = useState('all');
+  const [ee, setEe] = useState('all'); // 'all' or one estate id (tap the chip again for all)
   const [q, setQ] = useState('');
-  const estIds = [...new Set(pri.map((x) => x.e.id))];
+  const estIds = [...new Set(pri.map((x) => x.e.id).concat(est.map((x) => x.e.id)))];
   const list = pri.filter((x) => (ee === 'all' || x.e.id === ee) && norm(x.f.code + x.e.name).includes(norm(q)));
   const elist = est.filter((x) => ee === 'all' || x.e.id === ee);
+  const ename = (id) => (p.estates.find((e) => e.id === id) || {}).name || 'Estate';
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
-      <PageHead icon="podium-outline" title="Priorities" sub="One row per field, worst first" />
-      <FilterChips
-        value={kind}
-        onChange={setKind}
-        options={[
-          { key: 'fields', label: 'Fields', n: pri.length },
-          { key: 'estate', label: 'Estate items', n: est.length },
-        ]}
+      <PageHead
+        icon="podium-outline"
+        title="Priorities"
+        sub={(ee === 'all' ? 'All estates' : ename(ee)) + ' · ' + list.length + ' fields, worst first'}
       />
       {estIds.length > 1 && (
         <FilterChips
           value={ee}
-          onChange={setEe}
-          options={[{ key: 'all', label: 'All estates' }].concat(estIds.map((id) => ({ key: id, label: p.estates.find((e) => e.id === id).name })))}
+          onChange={(k) => setEe(k === ee ? 'all' : k)}
+          options={estIds.map((id) => ({
+            key: id,
+            label: ename(id),
+            n: pri.filter((x) => x.e.id === id).length,
+          }))}
         />
       )}
-      {kind === 'fields' ? (
-        <>
-          <SearchBox value={q} onChange={setQ} placeholder="Search field code" />
-          <View style={styles.exc}>
-            {list.slice(0, 150).map((it) => (
-              <PriorityRow key={it.key} it={it} rank={pri.indexOf(it) + 1} onPress={() => p.onOpenField(it.f.id)} />
-            ))}
-            {list.length === 0 && (
-              <View style={styles.exRow}>
-                <T style={styles.hint}>Nothing here.</T>
-              </View>
-            )}
-          </View>
-        </>
-      ) : (
+      <SearchBox value={q} onChange={setQ} placeholder="Search field code" />
+      {elist.length > 0 && !q && (
         <View style={styles.exc}>
+          <View style={styles.excHead}>
+            <T style={styles.excTitle}>Estate level</T>
+            <View style={{ flex: 1 }} />
+            <View style={styles.excCount}>
+              <T style={styles.excCountText}>{elist.length}</T>
+            </View>
+          </View>
           {elist.map((it) => (
             <EstateItemRow key={it.key} it={it} />
           ))}
-          {elist.length === 0 && (
-            <View style={styles.exRow}>
-              <T style={styles.hint}>No estate-level items.</T>
-            </View>
-          )}
         </View>
       )}
+      <View style={styles.exc}>
+        {list.slice(0, 150).map((it) => (
+          <PriorityRow key={it.key} it={it} rank={pri.indexOf(it) + 1} onPress={() => p.onOpenField(it.f.id)} />
+        ))}
+        {list.length === 0 && (
+          <View style={styles.exRow}>
+            <T style={styles.hint}>{q ? 'No field matches.' : 'Nothing needs attention.'}</T>
+          </View>
+        )}
+      </View>
     </ScrollView>
   );
 }

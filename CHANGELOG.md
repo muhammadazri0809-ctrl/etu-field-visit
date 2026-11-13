@@ -15,6 +15,17 @@ New look: frosted glass on a nature background
 - Stat tiles, menu rows and lists no longer cut text off with "...".
 - One button style: green = main action, glass = second action (no more blue/grey).
 
+WhatsApp import & quicker lists
+- Visits -> IMPORT WHATSAPP CHAT: pick the exported .zip, or the chat .txt with its
+  photos. The app reads estate names and field codes from the messages, turns each
+  message into an observation (category, status, "Action:" / "Root cause:" lines),
+  attaches photos sent just before or after it, and shows a preview before importing.
+  Works with Android and iPhone exports, English and Malay. New estate / field names
+  are created on import.
+- Swipe a visit left or right to delete it, with UNDO.
+- Priorities: one list, worst first. Tap an estate chip to filter, tap again for all.
+  Estate-level items sit above the field list.
+
 Data safety
 - Photos are copied into the app's own folder (before, they stayed in the
   phone's cache folder, which Android can empty, so photos could disappear).

@@ -9,6 +9,7 @@ import { showDate } from '../logic/dates';
 import { ACTION_BY, ECATS, ESTAT, ESTAT_ORDER, UOMS, WORD_LIB, etuCounts } from '../logic/etu';
 import { norm } from '../logic/importRows';
 import { C, T, styles } from '../theme';
+import { SwipeRow } from '../components/SwipeRow';
 
 // ---------- 1. visit list ----------
 export function EtuListScreen(p) {
@@ -19,7 +20,7 @@ export function EtuListScreen(p) {
     .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
   const nFields = list.reduce((n, v) => n + (v.fields || []).length, 0);
   const nAtt = list.reduce((n, v) => n + etuCounts(v).attention, 0);
-  const visited = [...new Set(etu.map((v) => v.estateId))];
+  const visited = [...new Set(etu.map((v) => v.estateId).filter(Boolean))];
   const ename = (id) => (estates.find((e) => e.id === id) || {}).name || 'Estate';
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -34,6 +35,7 @@ export function EtuListScreen(p) {
         ]}
       />
       <CTA label="NEW FIELD VISIT" icon="add" onPress={() => p.onNew(est !== 'all' ? est : estates.length === 1 ? estates[0].id : null)} />
+      <CTA label="IMPORT WHATSAPP CHAT" icon="logo-whatsapp" secondary onPress={p.onImportWa} />
       {visited.length > 1 && (
         <FilterChips
           value={est}
@@ -43,6 +45,7 @@ export function EtuListScreen(p) {
           )}
         />
       )}
+      {list.length > 0 && <T style={[styles.hint, { textAlign: 'center' }]}>Swipe a visit left or right to delete it.</T>}
       {list.length === 0 && (
         <Empty title="No visits yet" text="Tap NEW FIELD VISIT at the estate. Add each field you assess, record observations with photos, then share the report." />
       )}
@@ -50,10 +53,11 @@ export function EtuListScreen(p) {
         const c = etuCounts(v);
         const e = estates.find((x) => x.id === v.estateId) || {};
         return (
-          <Pressable key={v.id} style={styles.card} onPress={() => p.onOpen(v.id)}>
+          <SwipeRow key={v.id} onDelete={() => p.onDelete(v.id)} label={(e.name || 'visit') + ' ' + v.date}>
+          <Pressable style={[styles.card, styles.swipeCard]} onPress={() => p.onOpen(v.id)}>
             <DateBox date={v.date} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.rcardTitle} numberOfLines={2}>{(e.name || 'No estate') + ' Estate'}</Text>
+              <Text style={styles.rcardTitle} numberOfLines={2}>{e.name ? e.name + (/estate$/i.test(e.name) ? '' : ' Estate') : 'No estate chosen'}</Text>
               <T style={styles.meta} numberOfLines={2}>{[e.region, e.sou, v.visitedBy].filter(Boolean).join(' · ') || 'Tap to add details'}</T>
               <View style={styles.chips}>
                 <Chip tone={v.status === 'done' ? 'good' : 'rnd'} dot label={v.status === 'done' ? 'Completed' : 'In progress'} />
@@ -66,6 +70,7 @@ export function EtuListScreen(p) {
             </View>
             <Ionicons name="chevron-forward" size={18} color={C.muted} />
           </Pressable>
+          </SwipeRow>
         );
       })}
     </ScrollView>
