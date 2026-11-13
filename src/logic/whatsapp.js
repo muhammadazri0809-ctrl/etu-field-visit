@@ -125,7 +125,31 @@ export function findEstate(text, estates) {
     const n = estKey(e.name);
     if (n.length >= 3 && t.includes(n) && (!best || n.length > best.n.length)) best = { e, n };
   });
-  return best ? best.e : null;
+  if (best) return best.e;
+  // Short line with only the distinctive part of a name: "Rengam" = "CEP Rengam Estate".
+  // Only words that belong to one estate count (not "Sungai" when several estates use it).
+  const lineWords = String(text).toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+  if (!lineWords.length || lineWords.length > 5) return null;
+  const key = (w) => w.replace(/(.)\1+/g, '$1');
+  const lw = new Set(lineWords.map(key));
+  const owners = {};
+  estates.forEach((e) =>
+    nameWords(e.name).forEach((w) => {
+      owners[w] = owners[w] || new Set();
+      owners[w].add(e.id);
+    })
+  );
+  const hits = estates.filter((e) => nameWords(e.name).some((w) => owners[w].size === 1 && lw.has(w)));
+  return hits.length === 1 ? hits[0] : null;
+}
+
+const GENERIC_NAME = /^(estate|ladang|kebun|sungai|bukit|kampung|kg|sg|bkt|ldg|ulu|kuala|tanjung|batu|div|division|north|south|east|west|baru|lama)$/;
+function nameWords(name) {
+  return String(name || '')
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4 && !GENERIC_NAME.test(w))
+    .map((w) => w.replace(/(.)\1+/g, '$1'));
 }
 
 // Field codes in the text: explicit ("Field 2016A", "Blok 12") or a known code on its own
@@ -227,17 +251,18 @@ export function lineStatus(line) {
 // Field code in a line: a known code (2016A also matches "16A" / "2016 A"), "Field 12", or 20xxA
 function codeRe(c) {
   const m = String(c).match(/^(19|20)(\d{2})([A-Z0-9]+)$/i);
-  const body = m ? '(?:' + m[1] + ')?' + m[2] + '\\s?' + m[3] : String(c).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // 2016A also matches "16A", "2016 A" and "2016-A"
+  const body = m ? '(?:' + m[1] + ')?' + m[2] + '[\\s-]?' + m[3] : String(c).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return new RegExp('(?:^|[^0-9A-Za-z])' + body + '(?![0-9A-Za-z])', 'i');
 }
-const YEAR_CODE = /(?:^|[^0-9A-Za-z])((?:19|20)\d{2}\s?[A-Z]\d?)(?![0-9A-Za-z])/i;
+const YEAR_CODE = /(?:^|[^0-9A-Za-z])((?:19|20)\d{2}[\s-]?[A-Z]\d?)(?![0-9A-Za-z])/i;
 function codeIn(line, known) {
   for (const c of known) if (codeRe(c).test(' ' + line)) return { code: String(c).toUpperCase(), re: codeRe(c) };
   FIELD_RE.lastIndex = 0;
   const m = FIELD_RE.exec(line);
   if (m) return { code: m[1].toUpperCase(), re: new RegExp(m[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') };
   const y = line.match(YEAR_CODE);
-  if (y) return { code: y[1].replace(/\s/g, '').toUpperCase(), re: new RegExp(y[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') };
+  if (y) return { code: y[1].replace(/[\s-]/g, '').toUpperCase(), re: new RegExp(y[1].replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') };
   return null;
 }
 
@@ -594,4 +619,15 @@ export function dropDeletedMessageObs(visits) {
     return { ...v, fields: fieldsOut };
   });
   return changed ? out : visits;
+}
+
+// After the estate of a group is changed by hand: link each field code to that estate's field
+export function relink(g, fields) {
+  return {
+    ...g,
+    fields: g.fields.map((f) => {
+      const hit = fields.find((x) => x.estateId === g.estateId && String(x.code).toUpperCase() === f.code);
+      return { ...f, fieldId: hit ? hit.id : null };
+    }),
+  };
 }
