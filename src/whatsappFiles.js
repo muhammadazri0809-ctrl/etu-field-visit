@@ -3,7 +3,8 @@
 // the chat .txt, and the photos (Android shares the .txt and photos as separate files).
 import { Directory, File, Paths } from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
-import { strFromU8, unzipSync } from 'fflate';
+import { strFromU8 } from 'fflate';
+import { listZip, readZipEntry } from './logic/zipReader';
 
 const IMG = /\.(jpe?g|png|webp|heic|heif)$/i;
 const base = (p) => String(p || '').split('/').pop();
@@ -40,22 +41,37 @@ export async function pickChatFiles() {
   for (const a of res.assets) {
     const name = a.name || base(a.uri);
     if (/\.zip$/i.test(name) || a.mimeType === 'application/zip') {
-      const bytes = await new File(a.uri).bytes();
-      const entries = unzipSync(bytes, { filter: (f) => /\.txt$/i.test(f.name) || IMG.test(f.name) });
-      Object.keys(entries).forEach((path) => {
-        const n = base(path);
-        if (!n || n.startsWith('.')) return;
-        if (/\.txt$/i.test(n)) {
-          texts.push({ name: n, text: strFromU8(entries[path]) });
-        } else {
-          dir = dir || tempDir();
-          const f = new File(dir, n);
-          if (f.exists) f.delete();
-          f.create();
-          f.write(entries[path]);
-          photos[n] = f.uri;
+      // Read the zip piece by piece: a big export would not fit in memory at once
+      const zf = new File(a.uri);
+      const h = zf.open();
+      try {
+        const read = (offset, length) => {
+          h.offset = offset;
+          return h.readBytes(length);
+        };
+        const entries = listZip(read, h.size != null ? h.size : zf.size);
+        let k = 0;
+        for (const en of entries) {
+          // let the screen redraw now and then on big exports
+          k += 1;
+          if (k % 15 === 0) await new Promise((r) => setTimeout(r, 0));
+          const n = base(en.name);
+          if (!n || n.startsWith('.')) continue;
+          if (/\.txt$/i.test(n)) {
+            texts.push({ name: n, text: strFromU8(readZipEntry(read, en)) });
+          } else if (IMG.test(n)) {
+            dir = dir || tempDir();
+            const f = new File(dir, n);
+            if (f.exists) f.delete();
+            f.create();
+            f.write(readZipEntry(read, en));
+            photos[n] = f.uri;
+          }
+          // videos, voice notes and documents are skipped without reading them
         }
-      });
+      } finally {
+        h.close();
+      }
     } else if (/\.txt$/i.test(name) || (a.mimeType || '').startsWith('text/')) {
       texts.push({ name, text: await new File(a.uri).text() });
     } else if (IMG.test(name) || (a.mimeType || '').startsWith('image/')) {
