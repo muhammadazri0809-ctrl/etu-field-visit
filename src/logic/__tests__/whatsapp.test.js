@@ -1,4 +1,4 @@
-import { buildImport, dropDeletedMessageObs, extractFiles, findFields, groupsToVisits, guessCategory, parseChat, splitLabels } from '../whatsapp';
+import { buildImport, dropDeletedMessageObs, findEstate, relink, extractFiles, findFields, groupsToVisits, guessCategory, parseChat, splitLabels } from '../whatsapp';
 
 const estates = [
   { id: 'bb', name: 'Bukit Badak' },
@@ -206,4 +206,22 @@ test('dropDeletedMessageObs removes old "You deleted this message" observations'
   expect(out[0].fields[0].obs).toEqual([keep]);
   expect(out[1]).toBe(visits[1]);
   expect(dropDeletedMessageObs(out)).toBe(out); // nothing left to change
+});
+
+test('estate data matching: short distinctive names, hyphenated codes, relink after picking', () => {
+  const est = [
+    { id: 'a', name: 'CEP Rengam Estate' },
+    { id: 'b', name: 'Sungai Mai' },
+    { id: 'c', name: 'Sungai Lembu' },
+  ];
+  expect(findEstate('Rengam', est).id).toBe('a');
+  expect(findEstate('Renggam today', est).id).toBe('a');
+  expect(findEstate('Lembu', est).id).toBe('c');
+  expect(findEstate('Sungai', est)).toBeNull(); // shared word, not enough
+  expect(findEstate('rat damage near the rengam road junction and more words', est)).toBeNull(); // long remark line
+  const chat = '12/11/2026, 09:00 - A: Bukit Badak\n12/11/2026, 09:01 - A: 2016-A\nDelay circle raking';
+  const g = buildImport(parseChat(chat), estates, fields, null).groups[0];
+  expect(g.fields[0]).toMatchObject({ code: '2016A', fieldId: 'f1' });
+  const moved = relink({ ...g, estateId: 'cr' }, fields);
+  expect(moved.fields[0].fieldId).toBeNull(); // 2016A is not a CEP Rengam field
 });

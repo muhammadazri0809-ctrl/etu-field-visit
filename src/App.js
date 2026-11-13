@@ -270,6 +270,7 @@ function App() {
       <WaImportScreen
         estates={estates}
         fields={fields}
+        onUpload={() => go({ name: 'upload' })}
         onImport={(out) => {
           if (out.newEstates.length) setEstates((prev) => [...prev, ...out.newEstates]);
           setEtu((prev) => [...out.visits, ...prev]);

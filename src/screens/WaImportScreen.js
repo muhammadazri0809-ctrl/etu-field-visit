@@ -5,7 +5,7 @@ import { CTA, Chip, DateBox, PageHead, Section } from '../components/ui';
 import { Dropdown } from '../components/Dropdown';
 import { newId, showDate } from '../logic/dates';
 import { ESTAT } from '../logic/etu';
-import { buildImport, groupsToVisits, parseChat } from '../logic/whatsapp';
+import { buildImport, groupsToVisits, parseChat, relink } from '../logic/whatsapp';
 import { keepPhoto } from '../storage';
 import { pickChatFiles } from '../whatsappFiles';
 import { C, T, styles } from '../theme';
@@ -13,7 +13,7 @@ import { C, T, styles } from '../theme';
 // =====================================================
 // IMPORT A WHATSAPP CHAT INTO ETU VISITS
 // =====================================================
-export function WaImportScreen({ estates, fields, onImport }) {
+export function WaImportScreen({ estates, fields, onImport, onUpload }) {
   const [chat, setChat] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
@@ -41,12 +41,14 @@ export function WaImportScreen({ estates, fields, onImport }) {
   const groups = result
     ? result.groups
         .filter((g) => g.fields.some((f) => f.obs.length))
-        .map((g) => (picked[g.key] ? { ...g, estateId: picked[g.key], estateName: '' } : g))
+        .map((g) => (picked[g.key] ? relink({ ...g, estateId: picked[g.key], estateName: '' }, fields) : g))
     : [];
   const allFiles = groups.flatMap((g) => g.fields.flatMap((f) => f.obs.flatMap((o) => o.files)));
   const found = chat ? allFiles.filter((n) => chat.photos[n]).length : 0;
   const noEstate = groups.filter((g) => !g.estateId && !g.estateName).length;
   const newNames = [...new Set(groups.filter((g) => !g.estateId && g.estateName).map((g) => g.estateName))];
+  const allF = groups.reduce((n, g) => n + g.fields.length, 0);
+  const matchedF = groups.reduce((n, g) => n + g.fields.filter((f) => f.fieldId).length, 0);
   const nObs = groups.reduce((n, g) => n + g.fields.reduce((m, f) => m + f.obs.length, 0), 0);
   const blocked = noEstate > 0 && !fallback;
 
@@ -74,6 +76,20 @@ export function WaImportScreen({ estates, fields, onImport }) {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <PageHead icon="logo-whatsapp" title="Import WhatsApp chat" sub="Observations and photos become ETU visits" />
+
+      {fields.length === 0 ? (
+        <Section icon="cloud-upload-outline" title="Upload estate data first">
+          <T style={styles.meta}>
+            The chat is checked against your estate data: estate names and field codes are matched to the estates and
+            fields from your Excel upload. Upload it first so every remark lands on the right field.
+          </T>
+          <CTA label="UPLOAD ESTATE DATA" icon="cloud-upload" secondary onPress={onUpload} />
+        </Section>
+      ) : (
+        <T style={styles.hint}>
+          Matching against your estate data: {estates.length} estates, {fields.length} fields.
+        </T>
+      )}
 
       {!chat && (
         <Section icon="information-circle-outline" title="How to export">
@@ -108,7 +124,14 @@ export function WaImportScreen({ estates, fields, onImport }) {
               <Chip tone="muted" label={result.stats.messages + ' messages'} />
               <Chip tone="good" icon="eye" label={nObs + ' observations'} />
               <Chip tone={found < allFiles.length ? 'mon' : 'good'} icon="image" label={found + ' of ' + allFiles.length + ' photos'} />
-              {newNames.length > 0 && <Chip tone="rnd" icon="add-circle" label={newNames.length + ' new estate'} />}
+              <Chip
+                tone={matchedF < allF ? 'mon' : 'good'}
+                icon="grid"
+                label={matchedF + ' of ' + allF + ' fields in estate data'}
+              />
+              {newNames.length > 0 && (
+                <Chip tone="mon" icon="alert-circle" label={newNames.length + ' estate' + (newNames.length === 1 ? '' : 's') + ' not in estate data'} />
+              )}
             </View>
             {allFiles.length > found && (
               <T style={styles.hint}>
@@ -187,7 +210,7 @@ function GroupCard({ g, photos, estates, fallback, onPick }) {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.rcardTitle}>{name}</Text>
           <View style={styles.chips}>
-            {!e && g.estateName ? <Chip tone="rnd" icon="add-circle" label="New estate" /> : null}
+            {!e && g.estateName ? <Chip tone="mon" icon="alert-circle" label="Not in estate data · new estate" /> : null}
             {!e && !g.estateName ? <Chip tone={fb ? 'muted' : 'att'} label={fb ? 'Chosen estate' : 'Choose estate'} /> : null}
             <Chip tone="muted" label={showDate(g.date)} />
           </View>
@@ -206,7 +229,7 @@ function GroupCard({ g, photos, estates, fallback, onPick }) {
           <View key={f.code} style={styles.waField}>
             <View style={styles.rowBetween}>
               <T style={styles.bold}>{f.code === 'GENERAL' ? 'General (no field named)' : 'Field ' + f.code}</T>
-              {!f.fieldId && f.code !== 'GENERAL' ? <Chip tone="rnd" label="new field" /> : null}
+              {!f.fieldId && f.code !== 'GENERAL' ? <Chip tone="mon" label="Not in estate data" /> : null}
             </View>
             {f.obs.map((o, i) => (
               <View key={i} style={styles.waObs}>
