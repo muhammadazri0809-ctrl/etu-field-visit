@@ -1,4 +1,4 @@
-// ETU FIELD VISIT v7.6 (bottom nav, new dashboard, step-by-step visit, ETU field visit, ranked priorities, tidy pages, profit in RM mil, region/SOU in Estates, reads full estate report workbook, region/SOU lookup, fields, upload, photos, settings)
+// ETU FIELD VISIT v7.7 (bottom bar above phone buttons, bottom nav, new dashboard, step-by-step visit, ETU field visit, ranked priorities, tidy pages, profit in RM mil, region/SOU in Estates, reads full estate report workbook, region/SOU lookup, fields, upload, photos, settings)
 // Site visits + 10 activity triggers + follow-up actions
 // + 12 cost elements + estate profit
 import React, { useState, useEffect } from 'react';
@@ -18,6 +18,7 @@ import {
   BackHandler,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import * as DocumentPicker from 'expo-document-picker';
 import { File } from 'expo-file-system';
@@ -842,9 +843,9 @@ function templateHeader() {
 }
 
 // ===== REUSABLE: top bar =====
-function TopBar({ sub, onBack, alerts, onBell }) {
+function TopBar({ sub, onBack, alerts, onBell, top }) {
   return (
-    <View style={styles.top}>
+    <View style={[styles.top, top ? { paddingTop: Math.max(top + 6, 14) } : null]}>
       {onBack ? (
         <Pressable style={styles.iconBtn} onPress={onBack} hitSlop={8}>
           <Ionicons name="arrow-back" size={20} color={C.ink} />
@@ -1091,7 +1092,17 @@ function DateBox({ date }) {
 // =====================================================
 // MAIN APP
 // =====================================================
-export default function App() {
+// Keeps the app clear of the phone's status bar and Back / Home buttons
+export default function Root() {
+  return (
+    <SafeAreaProvider>
+      <App />
+    </SafeAreaProvider>
+  );
+}
+
+function App() {
+  const insets = useSafeAreaInsets();
   const [fontsLoaded, fontError] = useFonts({
     BarlowCondensed_600SemiBold,
     BarlowCondensed_700Bold,
@@ -1414,9 +1425,9 @@ export default function App() {
   return (
     <View style={styles.app}>
       <StatusBar barStyle="dark-content" backgroundColor={C.skyTop} />
-      <TopBar sub={sub} onBack={back} />
+      <TopBar sub={sub} onBack={back} top={insets.top} />
       <View style={{ flex: 1 }}>{body}</View>
-      <BottomNav active={stack[0].name} onGo={goTab} badge={actions.filter((a) => a.status !== 'done' && isOverdue(a)).length} />
+      <BottomNav bottom={insets.bottom} active={stack[0].name} onGo={goTab} badge={actions.filter((a) => a.status !== 'done' && isOverdue(a)).length} />
     </View>
   );
 }
@@ -4582,9 +4593,9 @@ const NAV = [
   { k: 'more', label: 'More', ic: 'menu' },
 ];
 
-function BottomNav({ active, onGo, badge }) {
+function BottomNav({ active, onGo, badge, bottom }) {
   return (
-    <View style={styles.nav}>
+    <View style={[styles.nav, { paddingBottom: (bottom || 0) + 6 }]}>
       {NAV.map((n) => {
         const on = n.k === active;
         return (
