@@ -113,11 +113,16 @@ const FIELD_RE = /\b(?:field|fld|blok|block|blk|peringkat|prk|fd|petak)\b\s*(?:n
 const EST_LABEL_RE = /\b(?:estate|ladang)\s*[:-]\s*([^\n,.;]{2,40})/i;
 
 // Find a known estate mentioned in the text (longest name wins)
+// Spelling-tolerant key: lower case, letters/digits only, double letters as one ("Renggam" = "Rengam")
+export function estKey(s) {
+  return norm(String(s || '').replace(EST_WORDS, '')).replace(/(.)\1+/g, '$1');
+}
+
 export function findEstate(text, estates) {
-  const t = ' ' + norm(text) + ' ';
+  const t = ' ' + estKey(text) + ' ';
   let best = null;
   estates.forEach((e) => {
-    const n = norm(String(e.name || '').replace(EST_WORDS, ''));
+    const n = estKey(e.name);
     if (n.length >= 3 && t.includes(n) && (!best || n.length > best.n.length)) best = { e, n };
   });
   return best ? best.e : null;
@@ -243,6 +248,20 @@ const GAP = 30; // minutes: a photo belongs to the message posted nearest in tim
 const PER_OBS = 3; // photos kept per observation
 const PER_FIELD = 12; // photos kept per field
 
+// Words that mark a line as a field remark, never an estate name
+const REMARK_WORD = /\b(good|poor|delay|delayed|spotted|high|low|heavy|fresh|old|damage|lack|need|weed|pest|many|some|overgrown|bad|missing|vacant|wip|done|progress|spray|spraying|raking|pruning|palm|palms|bunch|frond|drain|road|path|rat|bagworm|ganoderma|abnormal|supply|supplying|fencing|mound|mounding|stacking|ok|noted|harvest|crop|loose|fruit|census|treatment)\b/i;
+
+// "Sungai Lembu" / "Ladang Sri Jaya" on its own line, before a field code = start of a new estate
+function headingName(line) {
+  const t = line.replace(/\b(lawatan|visit|site|ke|to|hari ini|today)\b/gi, ' ').replace(EST_WORDS, ' ').replace(/\s+/g, ' ').trim();
+  if (t.length < 3 || t.length > 40) return '';
+  if (!/^[A-Za-z][A-Za-z&'.\- ]*$/.test(t)) return '';
+  const w = t.split(' ');
+  if (w.length > 4) return '';
+  if (REMARK_WORD.test(t) || topicsIn(t).length || NOISE_RE.test(t)) return '';
+  return w.map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join(' ');
+}
+
 // messages -> groups [{ key, estateId, estateName, date, fields: [{ code, fieldId, obs: [...] }] }]
 // One observation per remark line (the ETU web app's rule). obs: { title, issue, action, root,
 // category, status, files, time, sender }. skipFiles = photo names to ignore (duplicate pictures).
@@ -259,7 +278,7 @@ export function buildImport(messages, estates, fields, defaultEstateId, skipFile
   const fieldFor = (date) => {
     const eid = estate ? estate.id : null;
     const ename = estate ? estate.name : newEstateName;
-    const key = (eid || 'new:' + norm(ename)) + '|' + date;
+    const key = (eid || 'new:' + estKey(ename)) + '|' + date;
     let g = groups.find((x) => x.key === key);
     if (!g) {
       g = { key, estateId: eid, estateName: ename, date, fields: [] };
@@ -275,7 +294,18 @@ export function buildImport(messages, estates, fields, defaultEstateId, skipFile
   };
   const knownCodes = () => fields.filter((f) => !estate || f.estateId === estate.id).map((f) => f.code);
 
-  messages.forEach((msg) => {
+  // next non-empty text line after line li of message mi (this message, then the next ones)
+  const peekNext = (mi, li) => {
+    const own = (messages[mi].text || '').split('\n').slice(li + 1).find((x) => x.trim());
+    if (own) return own;
+    for (let k = mi + 1; k < Math.min(messages.length, mi + 4); k++) {
+      const t = (messages[k].text || '').split('\n').find((x) => x.trim());
+      if (t && !SKIP_MSG.test(t.trim())) return t;
+    }
+    return '';
+  };
+
+  messages.forEach((msg, mi) => {
     if (msg.omitted) {
       stats.omitted += 1;
       return;
@@ -290,9 +320,28 @@ export function buildImport(messages, estates, fields, defaultEstateId, skipFile
     const made = [];
     let lastObs = null;
 
-    raw.split('\n').forEach((rawLine) => {
+    const lines = raw.split('\n');
+    lines.forEach((rawLine, li) => {
       let line = rawLine.replace(/^[\s\-•*·>]+|^\d+[.)]\s*/g, '').trim();
       if (!line) return;
+      // an estate that is not in the app yet: a short name line followed by a field code
+      if (!findEstate(line, estates) && !EST_LABEL_RE.test(line) && !codeIn(line, knownCodes())) {
+        const name = headingName(line);
+        const firstLine = li === 0 || lines.slice(0, li).every((x) => !x.trim());
+        const hasWord = /\b(estate|ladang)\b/i.test(line);
+        if (name && (hasWord || firstLine)) {
+          const next = peekNext(mi, li);
+          const nc = next && codeIn(next, []);
+          const known = nc && estate && fields.some((f) => f.estateId === estate.id && String(f.code).toUpperCase() === nc.code);
+          if (nc && !known) {
+            const fz = findEstate(name, estates);
+            estate = fz || null;
+            newEstateName = fz ? '' : name;
+            fieldCode = '';
+            return;
+          }
+        }
+      }
       // estate named in the line?
       const e = findEstate(line, estates);
       const label = EST_LABEL_RE.exec(line);
@@ -309,11 +358,13 @@ export function buildImport(messages, estates, fields, defaultEstateId, skipFile
       if (label) line = line.replace(EST_LABEL_RE, ' ');
       line = line.replace(EST_WORDS, ' ').trim();
       // field code in the line?
-      const c = codeIn(line, knownCodes());
+      const c = codeIn(line, knownCodes()) || codeIn(line, fields.map((f) => f.code));
       if (c) {
-        if (!estate && !newEstateName) {
-          const owners = fields.filter((f) => String(f.code).toUpperCase() === c.code);
-          if (owners.length === 1) estate = estates.find((x) => x.id === owners[0].estateId) || null;
+        const owners = fields.filter((f) => String(f.code).toUpperCase() === c.code);
+        const inCurrent = estate && owners.some((f) => f.estateId === estate.id);
+        if (!inCurrent && !newEstateName && owners.length === 1) {
+          // the code belongs to one estate only: that is where we are
+          estate = estates.find((x) => x.id === owners[0].estateId) || estate;
         }
         fieldCode = c.code;
         line = line.replace(c.re, ' ').replace(/\b(field|fld|blok|block|blk|peringkat|prk|petak)\b/gi, ' ');
@@ -439,11 +490,12 @@ export function groupsToVisits(groups, opts) {
   const visits = [];
   let attached = 0;
   let missing = 0;
+  const byKey = new Map(); // one visit per estate per day
   groups.forEach((g) => {
     let estateId = g.estateId;
     if (!estateId && g.estateName) {
-      const key = norm(g.estateName);
-      let e = estates.concat(newEstates).find((x) => norm(x.name) === key);
+      const key = estKey(g.estateName);
+      let e = estates.concat(newEstates).find((x) => estKey(x.name) === key);
       if (!e) {
         e = { id: newId(), name: g.estateName, region: '', sou: '', profitAct: '', profitBgt: '' };
         newEstates.push(e);
@@ -484,7 +536,20 @@ export function groupsToVisits(groups, opts) {
         };
       }),
     }));
-    visits.push({
+    const k = (estateId || '-') + '|' + g.date;
+    const same = byKey.get(k);
+    if (same) {
+      vfields.forEach((vf) => {
+        const f = same.fields.find((x) => x.code === vf.code);
+        if (f) f.obs.push(...vf.obs);
+        else same.fields.push(vf);
+      });
+      senders.forEach((x) => {
+        if (!same.visitedBy.split(', ').includes(x)) same.visitedBy = [same.visitedBy, x].filter(Boolean).join(', ');
+      });
+      return;
+    }
+    const visit = {
       id: newId(),
       estateId,
       date: g.date,
@@ -492,7 +557,9 @@ export function groupsToVisits(groups, opts) {
       fields: vfields,
       notes: 'Imported from WhatsApp chat',
       status: 'draft',
-    });
+    };
+    byKey.set(k, visit);
+    visits.push(visit);
   });
   return { visits, newEstates, attached, missing };
 }

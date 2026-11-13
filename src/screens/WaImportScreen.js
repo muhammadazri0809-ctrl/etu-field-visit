@@ -36,7 +36,13 @@ export function WaImportScreen({ estates, fields, onImport }) {
     setBusy(false);
   };
 
-  const groups = result ? result.groups.filter((g) => g.fields.some((f) => f.obs.length)) : [];
+  // estate chosen by hand on a visit card wins over what the chat said
+  const [picked, setPicked] = useState({});
+  const groups = result
+    ? result.groups
+        .filter((g) => g.fields.some((f) => f.obs.length))
+        .map((g) => (picked[g.key] ? { ...g, estateId: picked[g.key], estateName: '' } : g))
+    : [];
   const allFiles = groups.flatMap((g) => g.fields.flatMap((f) => f.obs.flatMap((o) => o.files)));
   const found = chat ? allFiles.filter((n) => chat.photos[n]).length : 0;
   const noEstate = groups.filter((g) => !g.estateId && !g.estateName).length;
@@ -146,7 +152,14 @@ export function WaImportScreen({ estates, fields, onImport }) {
           )}
 
           {groups.map((g) => (
-            <GroupCard key={g.key} g={g} photos={chat.photos} estates={estates} fallback={fallback} />
+            <GroupCard
+              key={g.key}
+              g={g}
+              photos={chat.photos}
+              estates={estates}
+              fallback={fallback}
+              onPick={(id) => setPicked({ ...picked, [g.key]: id })}
+            />
           ))}
 
           {groups.length > 0 && (
@@ -163,7 +176,7 @@ export function WaImportScreen({ estates, fields, onImport }) {
   );
 }
 
-function GroupCard({ g, photos, estates, fallback }) {
+function GroupCard({ g, photos, estates, fallback, onPick }) {
   const e = g.estateId ? estates.find((x) => x.id === g.estateId) : null;
   const fb = !g.estateId && !g.estateName ? estates.find((x) => x.id === fallback) : null;
   const name = e ? e.name : g.estateName || (fb ? fb.name : 'Estate not named');
@@ -180,6 +193,13 @@ function GroupCard({ g, photos, estates, fallback }) {
           </View>
         </View>
       </View>
+      <Dropdown
+        label="Estate for this visit"
+        value={g.estateId}
+        options={estates.map((x) => ({ value: x.id, label: x.name }))}
+        onChange={onPick}
+        placeholder={g.estateName ? 'New estate: ' + g.estateName : 'Choose estate'}
+      />
       {g.fields
         .filter((f) => f.obs.length)
         .map((f) => (

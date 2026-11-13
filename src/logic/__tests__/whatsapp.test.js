@@ -125,13 +125,55 @@ test('buildImport: chat with an estate that is not in the app yet', () => {
   expect(groups[1].fields[0].obs[0]).toMatchObject({ category: 'Pest & Disease', issue: 'Rat damage on fresh bunches' });
 });
 
-test('buildImport: chat that never names an estate uses the chosen default', () => {
+test('buildImport: field codes decide the estate; the default is for unknown fields', () => {
   const chat = '13/11/2026, 09:00 - A: Field 2016A loose fruits not collected at the platform';
-  const { groups } = buildImport(parseChat(chat), estates, fields, 'cr');
+  const g = buildImport(parseChat(chat), estates, fields, 'cr').groups[0];
+  expect(g.estateId).toBe('bb'); // 2016A only exists in Bukit Badak
+  expect(g.fields[0].obs[0]).toMatchObject({ title: 'Crop Losses', category: 'Harvesting' });
+  const other = '13/11/2026, 09:00 - A: Field 2099Z loose fruits not collected at the platform';
+  expect(buildImport(parseChat(other), estates, fields, 'cr').groups[0].estateId).toBe('cr');
+});
+
+// Six-estate style trip: some estates are not in the app, one is misspelled
+const TRIP = `12/11/2026, 08:00 - Azri: CEP Renggam
+12/11/2026, 08:01 - Azri: 2022B
+Vacant point due to HEC
+Supplying WIP
+12/11/2026, 10:00 - Azri: Sungai Lembu
+12/11/2026, 10:01 - Azri: 2015A
+Good deboiling
+Spotted strip spraying
+12/11/2026, 11:00 - Azri: Ladang Sri Jaya
+2019A
+Delay circle raking
+12/11/2026, 13:00 - Azri: Bukit Badak
+2008B
+Ganoderma
+12/11/2026, 15:00 - Azri: CEP Rengam
+2023B
+Basal pruning in progress`;
+
+test('buildImport: new estates from name lines, misspelled names, one visit per estate per day', () => {
+  const { groups } = buildImport(parseChat(TRIP), estates, fields, null);
+  const names = groups.map((g) => g.estateName);
+  expect(names).toEqual(['CEP Rengam Estate', 'Sungai Lembu', 'Sri Jaya', 'Bukit Badak']);
   expect(groups[0].estateId).toBe('cr');
-  const g2 = buildImport(parseChat(chat), estates, fields, null).groups[0];
-  expect(g2.estateId).toBe('bb'); // unique field code found the estate
-  expect(g2.fields[0].obs[0]).toMatchObject({ title: 'Crop Losses', category: 'Harvesting' });
+  expect(groups[0].fields.map((f) => f.code)).toEqual(['2022B', '2023B']); // both CEP Rengam messages, one visit
+  expect(groups[0].fields[0].obs.map((o) => o.issue)).toEqual(['Vacant point due to HEC', 'Supplying WIP']);
+  expect(groups[1]).toMatchObject({ estateId: null, estateName: 'Sungai Lembu' });
+  expect(groups[2].fields[0].obs[0].title).toBe('Circle Raking');
+  let n = 0;
+  const out = groupsToVisits(groups, { estates, fallbackEstateId: null, newId: () => 'id' + ++n, photoUri: () => null });
+  expect(out.visits).toHaveLength(4);
+  expect(out.newEstates.map((e) => e.name)).toEqual(['Sungai Lembu', 'Sri Jaya']);
+});
+
+test('groupsToVisits merges two groups that end up on the same estate and day', () => {
+  const g = (key, estateId, code) => ({ key, estateId, estateName: '', date: '2026-11-12', fields: [{ code, fieldId: null, obs: [{ title: 't', issue: 'x', action: '', root: '', category: 'Other', status: 'attention', files: [], sender: 'A' }] }] });
+  let n = 0;
+  const out = groupsToVisits([g('a', 'cr', '2022B'), g('b', 'cr', '2020A')], { estates, fallbackEstateId: null, newId: () => 'id' + ++n, photoUri: () => null });
+  expect(out.visits).toHaveLength(1);
+  expect(out.visits[0].fields.map((f) => f.code)).toEqual(['2022B', '2020A']);
 });
 
 test('groupsToVisits: creates visits, new estates and links photos', () => {
