@@ -74,16 +74,6 @@ export function HomeScreen(p) {
 
       {/* quick actions */}
       <CTA label="NEW FIELD VISIT" icon="add-circle" onPress={() => p.onNewEtu()} />
-      <View style={styles.row2}>
-        <Pressable style={[styles.quick, { borderColor: C.accent }]} onPress={() => p.onGo('upload')}>
-          <Ionicons name="cloud-upload" size={20} color={C.accent} />
-          <T style={[styles.quickText, { color: C.accent }]}>Upload data</T>
-        </Pressable>
-        <Pressable style={[styles.quick, { borderColor: C.att }]} onPress={() => p.onGo('alerts')}>
-          <Ionicons name="podium" size={20} color={C.att} />
-          <T style={[styles.quickText, { color: C.att }]}>All priorities</T>
-        </Pressable>
-      </View>
 
       {/* top 5 */}
       {pri.length > 0 && (

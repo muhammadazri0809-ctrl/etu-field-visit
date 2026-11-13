@@ -362,7 +362,7 @@ function EstateOverview({ fields, ec, late, fieldRed, fcode, onField, onTab }) {
               <Ionicons name="time" size={18} color={C.att} />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <T style={styles.bold} numberOfLines={2}>{a.text}</T>
-                <T style={[styles.meta, { color: C.att }]}>
+                <T style={[styles.meta, { color: C.attInk }]}>
                   {fcode(a.fieldId)} · due {showDate(a.due)}
                 </T>
               </View>

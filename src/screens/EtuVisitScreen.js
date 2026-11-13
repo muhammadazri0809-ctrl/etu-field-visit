@@ -240,7 +240,7 @@ export function EtuVisitScreen(p) {
               </View>
               <T style={styles.meta}>{c.actions} action plans (added to Follow-ups) · {c.photos} photos</T>
               {vfs.some((f) => !(f.obs || []).length) && (
-                <T style={[styles.meta, { color: C.mon }]}>
+                <T style={[styles.meta, { color: C.monInk }]}>
                   Not recorded yet: {vfs.filter((f) => !(f.obs || []).length).map((f) => f.code).join(', ')}
                 </T>
               )}
@@ -250,7 +250,7 @@ export function EtuVisitScreen(p) {
             <DeleteBox label="Delete this visit and all its observations and photos?" button="Delete visit" confirm={confirm} setConfirm={setConfirm} onDelete={p.onDelete} />
           </>
         )}
-        {msg ? <T style={[styles.meta, { color: C.mon }]}>{msg}</T> : null}
+        {msg ? <T style={[styles.meta, { color: C.monInk }]}>{msg}</T> : null}
       </ScrollView>
 
       {/* step buttons at the thumb */}

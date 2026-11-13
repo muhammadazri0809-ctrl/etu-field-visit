@@ -28,14 +28,20 @@ export const C = {
   gold: '#946A10', // sun
   goldSoft: 'rgba(214,170,74,0.22)',
   att: '#B0452C', // terracotta = Action
-  attBg: 'rgba(214,104,76,0.16)',
+  attBg: 'rgba(214,104,76,0.2)',
   rnd: '#2C6A8E', // river = R&D
-  rndBg: 'rgba(60,140,180,0.15)',
+  rndBg: 'rgba(60,140,180,0.18)',
   mon: '#97620E', // amber = Monitor
-  monBg: 'rgba(226,168,58,0.22)',
+  monBg: 'rgba(226,168,58,0.26)',
   good: '#327638', // moss = Good
-  goodBg: 'rgba(80,160,90,0.17)',
+  goodBg: 'rgba(80,160,90,0.2)',
   amber: '#D9A43A',
+  // darker text versions of the status colours: 6.5:1+ contrast on their tinted chips (readable in sun)
+  attInk: '#8C2E17',
+  monInk: '#6E4500',
+  goodInk: '#1F5A25',
+  rndInk: '#1B4F6E',
+  goldInk: '#6E4C00',
 };
 
 // ===== FONTS =====
@@ -119,7 +125,7 @@ export const styles = StyleSheet.create({
   heroMini: {},
   scene: { position: 'absolute', left: 0, right: 0, bottom: 0, opacity: 0.45 },
   heroTx: { paddingHorizontal: 16, paddingTop: 14, gap: 2 },
-  eyebrowGold: { fontSize: 12, fontFamily: F.bold, letterSpacing: 1, textTransform: 'uppercase', color: C.gold },
+  eyebrowGold: { fontSize: 12, fontFamily: F.bold, letterSpacing: 1, textTransform: 'uppercase', color: C.goldInk },
   heroTitle: { fontFamily: F.displayBold, fontSize: 28, color: C.ink, lineHeight: 31 },
   heroTitleMini: { fontSize: 26, lineHeight: 29 },
   heroStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 12, paddingTop: 12 },
@@ -157,7 +163,7 @@ export const styles = StyleSheet.create({
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
-  chipText: { fontSize: 13, fontFamily: F.semi },
+  chipText: { fontSize: 13, fontFamily: F.bold },
   barTrack: { height: 10, borderRadius: 5, backgroundColor: C.sunk, overflow: 'hidden' },
   barFill: { height: 10, borderRadius: 5 },
   confirm: { backgroundColor: C.attBg, borderRadius: 16, padding: 12, gap: 10 },
@@ -192,14 +198,14 @@ export const styles = StyleSheet.create({
     paddingVertical: 11,
     backgroundColor: C.attBg,
   },
-  excTitle: { fontFamily: F.display, fontSize: 19, color: C.att, letterSpacing: 0.5 },
+  excTitle: { fontFamily: F.display, fontSize: 19, color: C.attInk, letterSpacing: 0.5 },
   excCount: {
     backgroundColor: C.surface,
     borderRadius: 999,
     paddingHorizontal: 10,
     paddingVertical: 3,
   },
-  excCountText: { fontSize: 12, fontFamily: F.bold, color: C.att },
+  excCountText: { fontSize: 12, fontFamily: F.bold, color: C.attInk },
   exRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 11, borderTopWidth: 1, borderTopColor: C.line },
   exIc: {
     width: 36,
@@ -246,6 +252,11 @@ export const styles = StyleSheet.create({
   ovCodeText: { fontFamily: F.displayBold, fontSize: 18, color: C.accent },
   seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   seeAllText: { fontFamily: F.bold, fontSize: 13, color: C.accent },
+  // ----- priority severity -----
+  sevRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sevTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: C.sunk, overflow: 'hidden' },
+  sevFill: { height: 8, borderRadius: 4, backgroundColor: C.att },
+  sevText: { fontFamily: F.bold, fontSize: 13, color: C.attInk, minWidth: 54, textAlign: 'right' },
   // ----- swipe to delete -----
   swipeWrap: { position: 'relative' },
   swipeAct: { position: 'absolute', top: 0, bottom: 0, width: 96, padding: 2 },
@@ -470,7 +481,7 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sumCard: { ...GLASS, borderRadius: 24, padding: 16, gap: 14 },
-  sumEyebrow: { fontSize: 12, fontFamily: F.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: C.gold },
+  sumEyebrow: { fontSize: 12, fontFamily: F.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: C.goldInk },
   sumMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   sumBig: { fontFamily: F.displayBold, fontSize: 56, lineHeight: 58 },
   sumTitle: { fontFamily: F.display, fontSize: 24, color: C.ink, lineHeight: 26 },

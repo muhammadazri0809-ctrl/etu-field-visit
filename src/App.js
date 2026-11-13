@@ -252,6 +252,7 @@ function App() {
         onNew={(eid) => newEtu(eid)}
         onOpen={(id) => go({ name: 'etuvisit', id: id })}
         onImportWa={() => go({ name: 'waimport' })}
+        onNewForField={(eid, fid) => newEtu(eid, fid)}
         onDelete={deleteEtu}
       />
     );
@@ -443,7 +444,16 @@ function App() {
     <View style={styles.app}>
       <Backdrop />
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
-      <TopBar sub={sub} onBack={back} top={insets.top} />
+      <TopBar
+        sub={sub}
+        onBack={back}
+        top={insets.top}
+        action={
+          screen.name === 'home' && estates.length
+            ? { icon: 'cloud-upload-outline', label: 'Upload estate data', onPress: () => go({ name: 'upload' }) }
+            : null
+        }
+      />
       {storeError ? (
         <View style={styles.storeWarn}>
           <T style={styles.storeWarnText}>{storeError}</T>

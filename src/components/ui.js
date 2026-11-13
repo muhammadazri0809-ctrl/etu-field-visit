@@ -7,7 +7,8 @@ import { C, T, styles } from '../theme';
 
 // ===== REUSABLE: top bar =====
 // Home tabs: logo + app name. Inner pages: back button + where you are (one line).
-export function TopBar({ sub, onBack, alerts, onBell, top }) {
+// action = optional icon button on the right: { icon, label, onPress }
+export function TopBar({ sub, onBack, action, top }) {
   return (
     <View style={[styles.top, top ? { paddingTop: Math.max(top + 6, 14) } : null]}>
       {onBack ? (
@@ -35,14 +36,9 @@ export function TopBar({ sub, onBack, alerts, onBell, top }) {
           </>
         )}
       </View>
-      {onBell ? (
-        <Pressable style={styles.iconBtn} onPress={onBell}>
-          <Ionicons name="notifications-outline" size={20} color={C.ink} />
-          {alerts > 0 && (
-            <View style={styles.badge}>
-              <T style={styles.badgeText}>{alerts}</T>
-            </View>
-          )}
+      {action ? (
+        <Pressable style={styles.iconBtn} onPress={action.onPress} hitSlop={6} accessibilityLabel={action.label}>
+          <Ionicons name={action.icon} size={20} color={C.accent} />
         </Pressable>
       ) : null}
     </View>
@@ -86,12 +82,13 @@ export const TONE_BG = {
   gold: { backgroundColor: C.goldSoft },
   muted: { backgroundColor: C.sunk },
 };
+// Text / icon colour for each tone (dark enough to read on the tinted chips outdoors)
 export const TONE_FG = {
-  att: C.att,
-  good: C.good,
-  mon: C.mon,
-  rnd: C.rnd,
-  gold: C.gold,
+  att: C.attInk,
+  good: C.goodInk,
+  mon: C.monInk,
+  rnd: C.rndInk,
+  gold: C.goldInk,
   muted: C.muted,
 };
 
@@ -247,7 +244,7 @@ export function DeleteBox({ label, button, confirm, setConfirm, onDelete }) {
   return (
     <Pressable onPress={() => setConfirm(true)} style={styles.delRow}>
       <Ionicons name="trash-outline" size={16} color={C.att} />
-      <T style={{ color: C.att }}>{button}</T>
+      <T style={{ color: C.attInk }}>{button}</T>
     </Pressable>
   );
 }

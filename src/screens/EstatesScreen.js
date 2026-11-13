@@ -5,7 +5,7 @@ import { Dropdown } from '../components/Dropdown';
 import { Chip, Empty, Field, PageHead, SearchBox, Section } from '../components/ui';
 import { showDate } from '../logic/dates';
 import { norm } from '../logic/importRows';
-import { LIMITS, estateYield, latestVisit, num, pctText } from '../logic/rules';
+import { LIMITS, estateYield, latestVisit, num, pctText, variance } from '../logic/rules';
 import { ALL, uniq } from '../logic/triggers';
 import { C, T, styles } from '../theme';
 import { useSavedState } from '../useSavedState';
@@ -31,6 +31,11 @@ export function EstatesScreen(p) {
   const lf = fields.filter((f) => list.some((e) => e.id === f.estateId));
   const ly = estateYield(lf);
   const lp = list.filter((e) => num(e.profitAct) !== null).reduce((s, e) => s + num(e.profitAct), 0);
+  // profit vs budget, only estates that have both numbers
+  const both = list.filter((e) => num(e.profitAct) !== null && num(e.profitBgt) !== null);
+  const lpv = both.length
+    ? variance(both.reduce((s, e) => s + num(e.profitAct), 0), both.reduce((s, e) => s + num(e.profitBgt), 0))
+    : null;
   const filtered = rg !== ALL || sou !== ALL;
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
@@ -69,12 +74,14 @@ export function EstatesScreen(p) {
             <T style={styles.sumLbl}>Mature ha</T>
           </View>
           <View style={styles.sumItem}>
-            <Text style={[styles.sumVal, ly && { color: ly.v < LIMITS.yieldAmber ? C.att : C.good }]}>{ly ? pctText(ly.v) : '-'}</Text>
+            <Text style={[styles.sumVal, ly && { color: ly.v < LIMITS.yieldAmber ? C.attInk : C.goodInk }]}>{ly ? pctText(ly.v) : '-'}</Text>
             <T style={styles.sumLbl}>Yield vs bgt</T>
           </View>
           <View style={styles.sumItem}>
-            <Text style={styles.sumVal}>{lp ? (lp / 1000).toFixed(1) : '-'}</Text>
-            <T style={styles.sumLbl}>Profit RM mil</T>
+            <Text style={[styles.sumVal, lpv !== null && { color: lpv < 0 ? C.attInk : C.goodInk }]}>
+              {lp ? (lp / 1000).toFixed(1) : '-'}
+            </Text>
+            <T style={styles.sumLbl}>{lpv !== null ? 'Profit RM mil · ' + pctText(lpv) : 'Profit RM mil'}</T>
           </View>
         </View>
       )}

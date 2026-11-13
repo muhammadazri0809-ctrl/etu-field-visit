@@ -15,6 +15,16 @@ New look: frosted glass on a nature background
 - Stat tiles, menu rows and lists no longer cut text off with "...".
 - One button style: green = main action, glass = second action (no more blue/grey).
 
+Readability & clearer priorities (design review)
+- Status chips and coloured text use darker shades with bold text: 6.5:1+ contrast
+  (was about 4.3:1), easier to read in sunlight. Gold headings darker too.
+- Home: NEW FIELD VISIT stands alone; Upload moved to an icon in the top bar.
+- Priorities: "Overdue follow-ups" box at the top matches the red tab badge;
+  each field shows a bar for tonnes below budget so severity can be compared.
+- Estates: profit total coloured green / red by profit vs budget, with the %.
+- Visits: "Suggested next visits" lists the worst fields not visited in 30 days,
+  with a one-tap Visit button.
+
 WhatsApp import & quicker lists
 - Visits -> IMPORT WHATSAPP CHAT: pick the exported .zip, or the chat .txt with its
   photos. The app reads estate names and field codes from the messages, turns each

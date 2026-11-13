@@ -92,7 +92,7 @@ export function WaImportScreen({ estates, fields, onImport }) {
         onPress={busy ? undefined : pick}
       />
       {busy && <ActivityIndicator color={C.accent} />}
-      {msg ? <T style={[styles.hint, { color: C.att }]}>{msg}</T> : null}
+      {msg ? <T style={[styles.hint, { color: C.attInk }]}>{msg}</T> : null}
 
       {result && (
         <>
