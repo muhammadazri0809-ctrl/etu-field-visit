@@ -28,7 +28,8 @@ export function EtuListScreen(p) {
     <ScrollView contentContainerStyle={styles.page}>
       <Hero
         eyebrow="ETU field visit"
-        title={list.length ? visited.length + ' estate' + (visited.length === 1 ? '' : 's') + ' visited' : 'Ready for your first visit'}
+        title={list.length ? visited.length + ' estate' + (visited.length === 1 ? '' : 's') : 'Ready for'}
+        title2={list.length ? 'visited' : 'your first visit'}
         sub={list.length ? 'Latest visit ' + showDate(list[0].date) : 'Record issues, photos and action plans by field'}
         stats={[
           { ic: 'list', v: String(list.length), l: 'Visits' },

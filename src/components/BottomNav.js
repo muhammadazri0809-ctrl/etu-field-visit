@@ -1,10 +1,10 @@
 import { Pressable, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { C, T, styles } from '../theme';
+import { C, F, T, styles } from '../theme';
 
 // =====================================================
-// BOTTOM NAVIGATION: floating glass bar (hidden while filling in a visit)
+// BOTTOM NAVIGATION: floating white pill, active tab in forest green (hidden while filling in a visit)
 // =====================================================
 const NAV = [
   { k: 'home', label: 'Home', ic: 'home' },
@@ -23,14 +23,14 @@ export function BottomNav({ active, onGo, badge, bottom }) {
           <Pressable key={n.k} style={styles.navBtn} onPress={() => onGo(n.k)}>
             {on && <View style={styles.navBar} />}
             <View>
-              <Ionicons name={on ? n.ic : n.ic + '-outline'} size={24} color={on ? C.accent : C.muted} />
+              <Ionicons name={on ? n.ic : n.ic + '-outline'} size={23} color={on ? '#fff' : C.muted} />
               {n.k === 'alerts' && badge > 0 ? (
                 <View style={styles.navBadge}>
                   <T style={styles.badgeText}>{badge > 99 ? '99+' : badge}</T>
                 </View>
               ) : null}
             </View>
-            <T style={[styles.navText, on && { color: C.accent }]}>{n.label}</T>
+            <T style={[styles.navText, on && { color: '#fff', fontFamily: F.bold }]}>{n.label}</T>
           </Pressable>
         );
       })}

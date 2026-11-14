@@ -1,53 +1,57 @@
 import { Platform, StatusBar, StyleSheet, Text } from 'react-native';
 import React from 'react';
 
-// ===== COLOURS: nature palette + frosted glass =====
-// Glass = semi-transparent white over the nature backdrop (components/Backdrop.js).
+// ===== COLOURS: "Earthy Minimal" =====
+// #2E3A2F forest (primary) · #6B7F5B sage (secondary) · #D9C9B2 sand (tertiary)
+// #C96F4F terracotta (accent) · #F8F6EE warm white (background)
+// Solid white cards with very soft shadows on a warm off-white page.
 export const C = {
-  // page backdrop
-  page: '#E4EEE0',
-  mint: '#D7EDE1',
-  sage: '#E6EEDB',
-  sand: '#F3EADA',
-  // glass surfaces
-  surface: 'rgba(255,255,255,0.62)', // cards
-  glassHi: 'rgba(255,255,255,0.78)', // bars, selected
-  bg: 'rgba(255,255,255,0.45)', // wells inside cards, inputs
-  solid: '#F6FAF3', // dialogs (no transparency)
-  edge: 'rgba(255,255,255,0.85)', // glass rim
-  sunk: 'rgba(29,74,47,0.07)',
-  line: 'rgba(29,74,47,0.12)',
+  // page
+  page: '#F8F6EE',
+  sandLight: '#EFE8DB',
+  // surfaces
+  surface: '#FFFFFF', // cards
+  glassHi: '#FFFFFF', // bars, selected
+  bg: '#F4F1E8', // wells inside cards, inputs
+  solid: '#FFFFFF', // dialogs
+  edge: 'rgba(46,58,47,0.06)', // hairline around cards
+  sunk: '#ECE7DB',
+  line: 'rgba(46,58,47,0.09)',
   // text
-  ink: '#12291B',
-  muted: '#4A5F50',
-  faint: '#7A8C7E',
-  // nature
-  accent: '#2E6B46', // leaf
-  accentSoft: 'rgba(46,107,70,0.13)',
-  brand: '#1D4A2F', // forest
-  gold: '#946A10', // sun
-  goldSoft: 'rgba(214,170,74,0.22)',
-  att: '#B0452C', // terracotta = Action
-  attBg: 'rgba(214,104,76,0.2)',
-  rnd: '#2C6A8E', // river = R&D
-  rndBg: 'rgba(60,140,180,0.18)',
-  mon: '#97620E', // amber = Monitor
-  monBg: 'rgba(226,168,58,0.26)',
-  good: '#327638', // moss = Good
-  goodBg: 'rgba(80,160,90,0.2)',
-  amber: '#D9A43A',
-  // darker text versions of the status colours: 6.5:1+ contrast on their tinted chips (readable in sun)
-  attInk: '#8C2E17',
-  monInk: '#6E4500',
-  goodInk: '#1F5A25',
-  rndInk: '#1B4F6E',
-  goldInk: '#6E4C00',
+  ink: '#1F2620',
+  muted: '#67645B',
+  faint: '#9C978B',
+  // palette
+  brand: '#2E3A2F', // forest: buttons, logo, date boxes
+  accent: '#4C5F40', // deep sage: icons, links, selected
+  accentSoft: '#E9EDE2',
+  sage: '#6B7F5B',
+  sand: '#D9C9B2',
+  terracotta: '#C96F4F',
+  gold: '#9A7A3E',
+  goldSoft: '#F2EADA',
+  // status: fill colour, tinted background, dark text
+  att: '#C96F4F', // terracotta = Action
+  attBg: '#F7E4DB',
+  rnd: '#5E7A8C', // slate = R&D
+  rndBg: '#E4EBEF',
+  mon: '#B8893A', // ochre = Monitor
+  monBg: '#F5EBD5',
+  good: '#6B7F5B', // sage = Good
+  goodBg: '#E7ECDF',
+  amber: '#D2A04A',
+  // text on the tinted chips: 6.5:1+ contrast (readable in sun)
+  attInk: '#8A3A21',
+  monInk: '#6C4C12',
+  goodInk: '#3B4E30',
+  rndInk: '#314C5C',
+  goldInk: '#5F4A1E',
 };
 
 // ===== FONTS =====
 export const F = {
-  display: 'BarlowCondensed_600SemiBold',
-  displayBold: 'BarlowCondensed_700Bold',
+  display: 'Inter_700Bold', // headings
+  displayBold: 'Inter_800ExtraBold', // big headlines and figures
   body: 'PublicSans_400Regular',
   semi: 'PublicSans_600SemiBold',
   bold: 'PublicSans_700Bold',
@@ -66,34 +70,26 @@ const TOP_PAD =
     ? (StatusBar.currentHeight || 24) + 6
     : 10;
 
-// Soft green-tinted shadow. Not on Android: elevation shadows show through
-// see-through glass as dark smudges, so Android uses the bright rim only.
-const SHADOW = Platform.select({
-  android: {},
-  default: {
-    shadowColor: '#1D4A2F',
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 8 },
-  },
-});
+// Very soft, warm shadow (soft UI). boxShadow works on Android and iOS (new architecture).
+const SHADOW = { boxShadow: '0px 1px 2px rgba(46,58,47,0.05), 0px 10px 28px rgba(46,58,47,0.08)' };
+const SHADOW_SM = { boxShadow: '0px 1px 2px rgba(46,58,47,0.06), 0px 4px 12px rgba(46,58,47,0.07)' };
 
-// Frosted glass card
+// White card
 const GLASS = {
   borderCurve: 'continuous',
   backgroundColor: C.surface,
   borderWidth: 1,
   borderColor: C.edge,
-  borderRadius: 20,
+  borderRadius: 24,
   ...SHADOW,
 };
 
-// Lighter glass well inside a card
+// Soft well inside a card
 const WELL = {
   borderCurve: 'continuous',
   backgroundColor: C.bg,
   borderWidth: 1,
-  borderColor: 'rgba(255,255,255,0.7)',
+  borderColor: 'rgba(46,58,47,0.04)',
 };
 
 export const GLASS_STYLE = GLASS;
@@ -108,43 +104,42 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     paddingTop: TOP_PAD,
-    paddingBottom: 8,
-    paddingHorizontal: 14,
-    backgroundColor: 'rgba(255,255,255,0.5)',
-    borderBottomWidth: 1,
-    borderBottomColor: C.edge,
+    paddingBottom: 10,
+    paddingHorizontal: 16,
+    backgroundColor: C.page,
   },
-  logo: { width: 38, height: 38, borderRadius: 12, backgroundColor: C.brand, alignItems: 'center', justifyContent: 'center' },
-  topTitle: { fontFamily: F.display, fontSize: 23, color: C.ink, lineHeight: 26 },
+  logo: { width: 40, height: 40, borderRadius: 14, borderCurve: 'continuous', backgroundColor: C.brand, alignItems: 'center', justifyContent: 'center', ...SHADOW_SM },
+  topTitle: { fontFamily: F.display, fontSize: 19, color: C.ink, lineHeight: 23, letterSpacing: -0.3 },
   topTitleB: { fontFamily: F.displayBold, color: C.accent },
   crumb: { fontFamily: F.semi, fontSize: 16, color: C.ink },
   menuHead: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', columnGap: 8, rowGap: 2 },
   topSub: { fontSize: 12.5, color: C.muted, fontFamily: F.semi },
-  iconBtn: { width: 40, height: 40, borderRadius: 14, ...WELL, backgroundColor: C.glassHi, alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center', ...SHADOW_SM },
   badge: { position: 'absolute', top: -6, right: -6, minWidth: 20, height: 20, paddingHorizontal: 5, borderRadius: 10, backgroundColor: C.att, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   badgeText: { fontVariant: ['tabular-nums'],  color: '#fff', fontSize: 10, fontFamily: F.bold },
   hero: { ...GLASS, borderRadius: 24, overflow: 'hidden' },
   heroMini: {},
   scene: { position: 'absolute', left: 0, right: 0, bottom: 0, opacity: 0.45 },
   heroTx: { paddingHorizontal: 16, paddingTop: 14, gap: 2 },
-  eyebrowGold: { fontSize: 12, fontFamily: F.bold, letterSpacing: 1, textTransform: 'uppercase', color: C.goldInk },
-  heroTitle: { fontFamily: F.displayBold, fontSize: 28, color: C.ink, lineHeight: 31 },
+  eyebrowGold: { fontSize: 12, fontFamily: F.bold, letterSpacing: 1.4, textTransform: 'uppercase', color: C.muted },
+  heroTitle: { fontFamily: F.displayBold, fontSize: 25, color: C.ink, lineHeight: 29, letterSpacing: -0.6 },
+  heroTitle2: { color: C.faint, marginTop: -4 },
   heroTitleMini: { fontSize: 26, lineHeight: 29 },
   heroStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, padding: 12, paddingTop: 12 },
-  hstat: { flexGrow: 1, flexBasis: '30%', minWidth: 96, ...WELL, backgroundColor: 'rgba(255,255,255,0.6)', borderRadius: 16, paddingVertical: 9, paddingHorizontal: 11, gap: 2 },
+  hstat: { flexGrow: 1, flexBasis: '30%', minWidth: 96, borderCurve: 'continuous', backgroundColor: C.bg, borderRadius: 18, paddingVertical: 11, paddingHorizontal: 12, gap: 2 },
   sic: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  hstatVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 24, color: C.ink, lineHeight: 27 },
+  hstatVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 21, color: C.ink, lineHeight: 25, letterSpacing: -0.3 },
   hstatLbl: { fontSize: 12.5, color: C.muted, fontFamily: F.semi, lineHeight: 16 },
   section: { ...GLASS, padding: 16, gap: 12 },
   sectionHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  hic: { width: 32, height: 32, borderRadius: 11, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  sectionTitle: { fontFamily: F.display, fontSize: 21, color: C.ink, flexShrink: 1 },
+  hic: { width: 34, height: 34, borderRadius: 12, borderCurve: 'continuous', backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  sectionTitle: { fontFamily: F.display, fontSize: 17, color: C.ink, flexShrink: 1, letterSpacing: -0.2 },
   hint: { fontSize: 13.5, color: C.muted, fontFamily: F.semi, lineHeight: 19 },
   meta: { fontSize: 14, color: C.muted, lineHeight: 19 },
   link: { color: C.accent, fontFamily: F.semi, fontSize: 14, textDecorationLine: 'underline' },
   kv: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 12 },
   kvItem: { width: '50%', paddingRight: 8 },
-  kvLabel: { fontSize: 12, fontFamily: F.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: C.muted },
+  kvLabel: { fontSize: 12, fontFamily: F.bold, letterSpacing: 1.1, textTransform: 'uppercase', color: C.muted },
   kvValue: { fontFamily: F.semi, fontSize: 15, marginTop: 2 },
   seg: { flexDirection: 'row', gap: 6 },
   segBtn: { flex: 1, paddingVertical: 11, borderRadius: 12, ...WELL, alignItems: 'center' },
@@ -156,14 +151,14 @@ export const styles = StyleSheet.create({
   fieldFull: { gap: 4 },
   inputMulti: { minHeight: 76, textAlignVertical: 'top' },
   label: { fontSize: 14, fontFamily: F.semi, color: C.muted },
-  input: { ...WELL, backgroundColor: 'rgba(255,255,255,0.7)', borderColor: C.line, borderRadius: 12, paddingVertical: 11, paddingHorizontal: 12, fontSize: 16, fontFamily: F.body, color: C.ink },
-  cta: { borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: C.accent, borderRadius: 18, paddingVertical: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.25)', ...SHADOW },
-  ctaSecondary: { backgroundColor: 'rgba(255,255,255,0.6)', borderColor: 'rgba(46,107,70,0.4)', borderWidth: 1.5 },
-  ctaText: { fontFamily: F.display, fontSize: 19, color: '#fff', letterSpacing: 0.6 },
-  empty: { alignItems: 'center', paddingVertical: 26, paddingHorizontal: 16, borderWidth: 1.5, borderStyle: 'dashed', borderColor: 'rgba(46,107,70,0.35)', backgroundColor: 'rgba(255,255,255,0.35)', borderRadius: 20, gap: 6 },
-  emptyTitle: { fontFamily: F.display, fontSize: 21, color: C.ink },
+  input: { borderCurve: 'continuous', backgroundColor: C.bg, borderWidth: 1, borderColor: 'rgba(46,58,47,0.08)', borderRadius: 14, paddingVertical: 12, paddingHorizontal: 14, fontSize: 16, fontFamily: F.body, color: C.ink },
+  cta: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, backgroundColor: C.brand, borderRadius: 999, borderCurve: 'continuous', paddingVertical: 17, ...SHADOW },
+  ctaSecondary: { backgroundColor: C.surface, borderWidth: 1, borderColor: C.edge, ...SHADOW_SM },
+  ctaText: { fontFamily: F.display, fontSize: 15, color: '#fff', letterSpacing: 0.6 },
+  empty: { alignItems: 'center', paddingVertical: 28, paddingHorizontal: 18, borderWidth: 1.5, borderStyle: 'dashed', borderColor: C.sand, backgroundColor: C.surface, borderRadius: 24, gap: 6 },
+  emptyTitle: { fontFamily: F.display, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
-  chip: { borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 999 },
+  chip: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, borderCurve: 'continuous' },
   chipDot: { width: 7, height: 7, borderRadius: 4 },
   chipText: { fontSize: 13, fontFamily: F.bold },
   barTrack: { height: 10, borderRadius: 5, backgroundColor: C.sunk, overflow: 'hidden' },
@@ -200,7 +195,7 @@ export const styles = StyleSheet.create({
     paddingVertical: 11,
     backgroundColor: C.attBg,
   },
-  excTitle: { fontFamily: F.display, fontSize: 19, color: C.attInk, letterSpacing: 0.5 },
+  excTitle: { fontFamily: F.display, fontSize: 15, color: C.attInk, letterSpacing: 0.2 },
   excCount: {
     backgroundColor: C.surface,
     borderRadius: 999,
@@ -218,18 +213,12 @@ export const styles = StyleSheet.create({
   },
   exTitle: { fontSize: 16, fontFamily: F.semi },
   rcard: { flexDirection: 'row', alignItems: 'center', gap: 12, ...WELL, borderRadius: 16, padding: 11 },
-  rcardTitle: { fontFamily: F.display, fontSize: 20, color: C.ink },
-  dateBox: { borderCurve: 'continuous', width: 52, borderRadius: 14, backgroundColor: C.brand, alignItems: 'center', paddingVertical: 7 },
-  dateBoxBig: { fontVariant: ['tabular-nums'],  fontFamily: F.display, fontSize: 22, color: '#fff', lineHeight: 24 },
-  dateBoxSmall: {
-    fontSize: 10,
-    fontFamily: F.bold,
-    letterSpacing: 0.6,
-    textTransform: 'uppercase',
-    color: '#D9F2E0',
-  },
-  estBox: { borderCurve: 'continuous', width: 48, height: 48, borderRadius: 16, backgroundColor: C.brand, alignItems: 'center', justifyContent: 'center' },
-  estBoxText: { fontFamily: F.display, fontSize: 20, color: '#fff' },
+  rcardTitle: { fontFamily: F.display, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
+  dateBox: { width: 54, borderRadius: 18, borderCurve: 'continuous', backgroundColor: C.brand, alignItems: 'center', paddingVertical: 8 },
+  dateBoxBig: { fontVariant: ['tabular-nums'],  fontFamily: F.display, fontSize: 19, color: '#fff', lineHeight: 22, letterSpacing: 0 },
+  dateBoxSmall: { fontSize: 10, fontFamily: F.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: C.sand },
+  estBox: { width: 50, height: 50, borderRadius: 18, borderCurve: 'continuous', backgroundColor: C.brand, alignItems: 'center', justifyContent: 'center' },
+  estBoxText: { fontFamily: F.display, fontSize: 16, color: '#fff', letterSpacing: 0 },
   addBtn: { width: 48, height: 46, borderRadius: 12, backgroundColor: C.accent, alignItems: 'center', justifyContent: 'center' },
   bold: { fontFamily: F.semi, fontSize: 16, color: C.ink },
   strike: { textDecorationLine: 'line-through', color: C.muted },
@@ -247,11 +236,11 @@ export const styles = StyleSheet.create({
   costIn: { paddingHorizontal: 8, paddingVertical: 7, fontSize: 14 },
   costVar: { width: 52, textAlign: 'right', fontSize: 12, fontFamily: F.bold },
   // ----- estate overview -----
-  groupLabel: { fontSize: 12, fontFamily: F.bold, letterSpacing: 0.9, textTransform: 'uppercase', color: C.muted, marginBottom: -6, marginLeft: 4 },
+  groupLabel: { fontSize: 12, fontFamily: F.bold, letterSpacing: 1.4, textTransform: 'uppercase', color: C.muted, marginBottom: -6, marginLeft: 6 },
   ovGroup: { gap: 6 },
   ovRow: { flexDirection: 'row', alignItems: 'center', gap: 10, ...WELL, borderRadius: 14, paddingVertical: 9, paddingHorizontal: 10 },
   ovCode: { minWidth: 48, height: 34, borderRadius: 10, paddingHorizontal: 6, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  ovCodeText: { fontFamily: F.displayBold, fontSize: 18, color: C.accent },
+  ovCodeText: { fontFamily: F.displayBold, fontSize: 15, color: C.accent, letterSpacing: -0.2 },
   seeAll: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   seeAllText: { fontFamily: F.bold, fontSize: 13, color: C.accent },
   // ----- priority severity -----
@@ -266,17 +255,17 @@ export const styles = StyleSheet.create({
   swipeAct: { position: 'absolute', top: 0, bottom: 0, width: 96, padding: 2 },
   swipeBtn: { borderCurve: 'continuous', flex: 1, backgroundColor: C.att, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 2 },
   swipeText: { color: '#fff', fontFamily: F.bold, fontSize: 13 },
-  swipeCard: { backgroundColor: 'rgba(250,252,248,0.94)' },
-  undoBar: { borderCurve: 'continuous', flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: 'rgba(18,41,27,0.92)', marginHorizontal: 12, marginBottom: 8, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 14 },
+  swipeCard: { backgroundColor: C.surface },
+  undoBar: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: C.brand, marginHorizontal: 14, marginBottom: 8, borderRadius: 999, borderCurve: 'continuous', paddingVertical: 13, paddingHorizontal: 18, ...SHADOW },
   undoText: { flex: 1, color: '#fff', fontFamily: F.semi, fontSize: 14 },
-  undoBtn: { color: '#BFE3C3', fontFamily: F.bold, fontSize: 15, letterSpacing: 0.5 },
+  undoBtn: { color: C.sand, fontFamily: F.bold, fontSize: 15, letterSpacing: 0.5 },
   // ----- whatsapp import -----
   waField: { gap: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: C.line },
   waObs: { gap: 6, ...WELL, borderRadius: 14, padding: 10 },
   thumbMissing: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderStyle: 'dashed', borderColor: C.line },
   // ----- cost list -----
   costSum: { flexDirection: 'row', alignItems: 'center', gap: 12, ...WELL, borderRadius: 16, padding: 12 },
-  costSumVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 30, color: C.ink, lineHeight: 33 },
+  costSumVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 26, color: C.ink, lineHeight: 30, letterSpacing: -0.5 },
   costItem: { gap: 5, paddingVertical: 11, paddingHorizontal: 4, borderTopWidth: 1, borderTopColor: C.line },
   costItemOver: { backgroundColor: 'rgba(214,104,76,0.08)', borderRadius: 12, paddingHorizontal: 8, marginHorizontal: -4 },
   costItemName: { fontFamily: F.semi, fontSize: 15.5, color: C.ink, flex: 1 },
@@ -290,15 +279,15 @@ export const styles = StyleSheet.create({
   vbarMid: { position: 'absolute', top: -2, bottom: -2, left: '50%', width: 2, marginLeft: -1, backgroundColor: C.ink, opacity: 0.8 },
   vbarLimit: { position: 'absolute', top: 0, bottom: 0, width: 1.5, backgroundColor: C.att, opacity: 0.6 },
   // ----- bottom sheet -----
-  sheetBg: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(14,38,24,0.4)' },
+  sheetBg: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, backgroundColor: 'rgba(31,38,32,0.35)' },
   sheetWrap: { flex: 1, justifyContent: 'flex-end' },
   sheetHandle: { alignItems: 'center', paddingVertical: 10, marginTop: -10, marginHorizontal: -18 },
-  sheet: { borderCurve: 'continuous', backgroundColor: C.solid, borderTopLeftRadius: 28, borderTopRightRadius: 28, padding: 18, paddingBottom: 30, gap: 14, borderWidth: 1, borderColor: C.edge },
+  sheet: { backgroundColor: C.surface, borderTopLeftRadius: 30, borderTopRightRadius: 30, borderCurve: 'continuous', padding: 18, paddingBottom: 30, gap: 14, boxShadow: '0px -8px 30px rgba(46,58,47,0.12)' },
   sheetGrip: { alignSelf: 'center', width: 44, height: 5, borderRadius: 3, backgroundColor: C.line },
-  sheetTitle: { fontFamily: F.displayBold, fontSize: 26, color: C.ink, lineHeight: 29 },
+  sheetTitle: { fontFamily: F.displayBold, fontSize: 22, color: C.ink, lineHeight: 26, letterSpacing: -0.4 },
   bigNum: { fontVariant: ['tabular-nums'],  fontSize: 24, fontFamily: F.bold, paddingVertical: 12, textAlign: 'right' },
   profitBox: { borderRadius: 18, padding: 16, alignItems: 'center', gap: 2 },
-  profitBig: { fontVariant: ['tabular-nums'],  fontFamily: F.display, fontSize: 38 },
+  profitBig: { fontVariant: ['tabular-nums'],  fontFamily: F.display, fontSize: 32, letterSpacing: -0.6 },
   stBtn: { flex: 1, flexDirection: 'row', gap: 4, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 12, ...WELL },
   stText: { fontFamily: F.semi, fontSize: 14 },
   barHead: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
@@ -329,7 +318,7 @@ export const styles = StyleSheet.create({
   resDot: { width: 12, height: 12, borderRadius: 6 },
   fupBox: { ...WELL, borderRadius: 14, padding: 10, gap: 10 },
   fieldBox: { width: 58, height: 52, borderRadius: 16, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
-  fieldBoxText: { fontFamily: F.display, fontSize: 19, color: C.accent, lineHeight: 21 },
+  fieldBoxText: { fontFamily: F.display, fontSize: 15, color: C.accent, lineHeight: 18, letterSpacing: -0.2 },
   fieldBoxSub: { fontSize: 11, fontFamily: F.bold, color: C.muted },
   costRo: { fontFamily: F.semi, fontSize: 14 },
   pickChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12, ...WELL },
@@ -337,7 +326,7 @@ export const styles = StyleSheet.create({
   pickChipText: { fontFamily: F.semi, fontSize: 14 },
   fieldTab: { minWidth: 64, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 14, ...WELL, alignItems: 'center' },
   fieldTabOn: { backgroundColor: C.brand, borderColor: C.brand },
-  fieldTabText: { fontFamily: F.display, fontSize: 20, color: C.ink },
+  fieldTabText: { fontFamily: F.display, fontSize: 16, color: C.ink, letterSpacing: -0.2 },
   tabBadge: { position: 'absolute', top: -7, right: -7, minWidth: 20, height: 20, borderRadius: 10, paddingHorizontal: 5, backgroundColor: C.att, borderWidth: 2, borderColor: '#fff', alignItems: 'center', justifyContent: 'center' },
   fieldInfo: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: 8, backgroundColor: C.accentSoft, borderRadius: 14, paddingVertical: 9, paddingHorizontal: 12 },
   pasteBox: { minHeight: 110, textAlignVertical: 'top', fontSize: 13 },
@@ -346,7 +335,7 @@ export const styles = StyleSheet.create({
   modalBg: { flex: 1, backgroundColor: 'rgba(14,38,24,0.45)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   calCard: { width: '100%', maxWidth: 360, backgroundColor: C.solid, borderRadius: 24, padding: 16, gap: 12, borderWidth: 1, borderColor: C.edge },
   calHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  calTitle: { fontFamily: F.display, fontSize: 22, color: C.ink },
+  calTitle: { fontFamily: F.display, fontSize: 18, color: C.ink, letterSpacing: -0.2 },
   calGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   calWeek: {
     width: '14.28%',
@@ -379,7 +368,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  photoBtn: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 11, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(46,107,70,0.45)', backgroundColor: 'rgba(255,255,255,0.55)' },
+  photoBtn: { flex: 1, flexDirection: 'row', gap: 6, alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 999, borderWidth: 1, borderColor: C.edge, backgroundColor: C.surface, ...SHADOW_SM },
   photoBtnText: { fontFamily: F.semi, color: C.accent },
   photoView: {
     flex: 1,
@@ -421,7 +410,7 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  tileTitle: { fontFamily: F.display, fontSize: 21, color: C.ink },
+  tileTitle: { fontFamily: F.display, fontSize: 17, color: C.ink, letterSpacing: -0.2 },
   tileSub: { fontSize: 13.5, color: C.muted, fontFamily: F.semi },
   tileBadge: {
     position: 'absolute',
@@ -437,25 +426,25 @@ export const styles = StyleSheet.create({
   },
   menu: { ...GLASS, overflow: 'hidden' },
   menuRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: C.line },
-  menuIc: { width: 40, height: 40, borderRadius: 13, backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
+  menuIc: { width: 42, height: 42, borderRadius: 14, borderCurve: 'continuous', backgroundColor: C.accentSoft, alignItems: 'center', justifyContent: 'center' },
   menuTitle: { fontFamily: F.semi, fontSize: 17, color: C.ink },
   pageHead: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 2 },
-  pageTitle: { fontFamily: F.displayBold, fontSize: 28, color: C.ink, lineHeight: 31 },
-  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, ...GLASS, borderRadius: 16, paddingHorizontal: 14 },
+  pageTitle: { fontFamily: F.displayBold, fontSize: 25, color: C.ink, lineHeight: 29, letterSpacing: -0.6 },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: C.surface, borderWidth: 1, borderColor: C.edge, borderRadius: 999, borderCurve: 'continuous', paddingHorizontal: 16, ...SHADOW_SM },
   searchIn: { flex: 1, paddingVertical: 12, fontSize: 15.5, fontFamily: F.body, color: C.ink },
   filterRow: { flexDirection: 'row', gap: 6 },
-  filterChip: { borderCurve: 'continuous', paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, ...WELL, backgroundColor: 'rgba(255,255,255,0.55)' },
-  filterChipOn: { backgroundColor: C.accent, borderColor: C.accent },
+  filterChip: { paddingVertical: 9, paddingHorizontal: 16, borderRadius: 999, borderCurve: 'continuous', backgroundColor: C.surface, borderWidth: 1, borderColor: C.edge, ...SHADOW_SM },
+  filterChipOn: { backgroundColor: C.brand, borderColor: C.brand },
   filterText: { fontFamily: F.semi, fontSize: 14, color: C.ink },
   card: { flexDirection: 'row', alignItems: 'center', gap: 12, ...GLASS, borderRadius: 18, padding: 12 },
   sumRow: { flexDirection: 'row', flexWrap: 'wrap', ...GLASS, paddingVertical: 12, rowGap: 10 },
   sumItem: { flexGrow: 1, flexBasis: '25%', minWidth: 76, alignItems: 'center', gap: 2, paddingHorizontal: 4 },
-  sumVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 23, color: C.ink, lineHeight: 26 },
+  sumVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 20, color: C.ink, lineHeight: 24, letterSpacing: -0.3 },
   sumLbl: { fontSize: 12, color: C.muted, fontFamily: F.semi, textAlign: 'center' },
-  rankBox: { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  rankNo: { fontVariant: ['tabular-nums'],  fontFamily: F.display, fontSize: 19 },
+  rankBox: { width: 34, height: 34, borderRadius: 17, alignItems: 'center', justifyContent: 'center' },
+  rankNo: { fontVariant: ['tabular-nums'],  fontFamily: F.display, fontSize: 15, letterSpacing: 0 },
   catIc: { borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
-  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.accent, borderRadius: 12, paddingVertical: 7, paddingHorizontal: 11 },
+  smallBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: C.brand, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 14 },
   smallBtnText: { color: '#fff', fontFamily: F.semi, fontSize: 14 },
   fcardE: { ...WELL, borderRadius: 16, padding: 12, gap: 8 },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
@@ -470,9 +459,9 @@ export const styles = StyleSheet.create({
   catText: { flex: 1, fontSize: 13.5, fontFamily: F.semi, color: C.ink },
   ghostBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start', paddingVertical: 4 },
   libItem: { gap: 2, padding: 11, borderRadius: 14, borderWidth: 1, borderStyle: 'dashed', borderColor: C.accent, backgroundColor: C.accentSoft },
-  nav: { borderCurve: 'continuous', flexDirection: 'row', marginHorizontal: 12, marginTop: 6, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.72)', borderWidth: 1, borderColor: C.edge, paddingVertical: 4, ...SHADOW },
-  navBtn: { flex: 1, alignItems: 'center', paddingTop: 7, paddingBottom: 5, gap: 2, borderRadius: 20, marginHorizontal: 2 },
-  navBar: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 20, backgroundColor: C.accentSoft },
+  nav: { flexDirection: 'row', marginHorizontal: 14, marginTop: 6, borderRadius: 30, borderCurve: 'continuous', backgroundColor: C.surface, borderWidth: 1, borderColor: C.edge, paddingVertical: 6, paddingHorizontal: 4, ...SHADOW },
+  navBtn: { flex: 1, alignItems: 'center', paddingTop: 7, paddingBottom: 6, gap: 2, borderRadius: 22, marginHorizontal: 2 },
+  navBar: { position: 'absolute', top: 0, bottom: 0, left: 0, right: 0, borderRadius: 22, backgroundColor: C.brand },
   navText: { fontSize: 12, fontFamily: F.semi, color: C.muted },
   navBadge: {
     position: 'absolute',
@@ -487,23 +476,23 @@ export const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   sumCard: { ...GLASS, borderRadius: 24, padding: 16, gap: 14 },
-  sumEyebrow: { fontSize: 12, fontFamily: F.bold, letterSpacing: 0.8, textTransform: 'uppercase', color: C.goldInk },
+  sumEyebrow: { fontSize: 12, fontFamily: F.bold, letterSpacing: 1.4, textTransform: 'uppercase', color: C.muted },
   sumMain: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  sumBig: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 56, lineHeight: 58 },
-  sumTitle: { fontFamily: F.display, fontSize: 24, color: C.ink, lineHeight: 26 },
+  sumBig: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 48, lineHeight: 52, letterSpacing: -1.2 },
+  sumTitle: { fontFamily: F.display, fontSize: 20, color: C.ink, lineHeight: 24, letterSpacing: -0.4 },
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
-  kpi: { width: '48.5%', ...WELL, borderRadius: 16, borderLeftWidth: 0, paddingVertical: 11, paddingHorizontal: 12, gap: 2 },
-  kpiVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 30, lineHeight: 32 },
+  kpi: { width: '48.5%', borderCurve: 'continuous', backgroundColor: C.bg, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 13, gap: 2 },
+  kpiVal: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 26, lineHeight: 30, letterSpacing: -0.6 },
   kpiLbl: { fontSize: 13, fontFamily: F.semi, color: C.muted },
-  quick: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 18, borderWidth: 1.5, backgroundColor: 'rgba(255,255,255,0.55)' },
+  quick: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 999, borderWidth: 1, borderColor: C.edge, backgroundColor: C.surface, ...SHADOW_SM },
   quickText: { fontFamily: F.bold, fontSize: 15 },
   priRow: { flexDirection: 'row', alignItems: 'center', gap: 10, ...WELL, borderRadius: 16, borderLeftWidth: 0, paddingVertical: 11, paddingHorizontal: 12 },
   priTitle: { fontFamily: F.semi, fontSize: 16.5, color: C.ink },
-  moneyBig: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 34, color: C.accent },
+  moneyBig: { fontVariant: ['tabular-nums'],  fontFamily: F.displayBold, fontSize: 28, color: C.accent, letterSpacing: -0.6 },
   visitHead: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   stepBar: { flexDirection: 'row', ...GLASS, borderRadius: 18, paddingVertical: 10 },
   stepItem: { flex: 1, alignItems: 'center', gap: 4 },
-  stepDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: C.line, backgroundColor: 'rgba(255,255,255,0.8)', alignItems: 'center', justifyContent: 'center' },
+  stepDot: { width: 30, height: 30, borderRadius: 15, borderWidth: 2, borderColor: C.line, backgroundColor: C.surface, alignItems: 'center', justifyContent: 'center' },
   stepNo: { fontFamily: F.bold, fontSize: 14, color: C.muted },
   stepText: { fontSize: 12, fontFamily: F.semi, color: C.muted },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 13, borderRadius: 16, ...WELL, borderWidth: 1.5 },
@@ -512,8 +501,8 @@ export const styles = StyleSheet.create({
   selChipText: { color: '#fff', fontFamily: F.semi, fontSize: 13 },
   revGrid: { flexDirection: 'row', gap: 6 },
   revCell: { flex: 1, borderRadius: 14, padding: 9, alignItems: 'center' },
-  stepFoot: { borderCurve: 'continuous', flexDirection: 'row', gap: 10, padding: 12, marginHorizontal: 12, marginBottom: 6, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.75)', borderWidth: 1, borderColor: C.edge, ...SHADOW },
-  footBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 16, ...WELL },
-  footNext: { flex: 1.6, backgroundColor: C.accent, borderColor: C.accent },
+  stepFoot: { flexDirection: 'row', gap: 10, padding: 10, marginHorizontal: 14, marginBottom: 6, borderRadius: 30, borderCurve: 'continuous', backgroundColor: C.surface, borderWidth: 1, borderColor: C.edge, ...SHADOW },
+  footBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 15, borderRadius: 999, borderCurve: 'continuous', backgroundColor: C.bg },
+  footNext: { flex: 1.6, backgroundColor: C.brand, borderColor: C.brand },
   footText: { fontFamily: F.bold, fontSize: 16, color: C.ink },
 });

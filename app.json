@@ -3,16 +3,16 @@
     "name": "ETU Field Visit",
     "slug": "etu-field-visit",
     "owner": "azrizainals-team",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "backgroundColor": "#F4F2EA",
+    "backgroundColor": "#F8F6EE",
     "android": {
       "package": "com.azrizainal.etufieldvisit",
-      "versionCode": 6,
+      "versionCode": 7,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#2C5534"
+        "backgroundColor": "#2E3A2F"
       },
       "permissions": [
         "android.permission.CAMERA"
@@ -34,7 +34,7 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 160,
           "resizeMode": "contain",
-          "backgroundColor": "#F4F2EA"
+          "backgroundColor": "#F8F6EE"
         }
       ]
     ],

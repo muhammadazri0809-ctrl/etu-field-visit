@@ -43,7 +43,7 @@ export function HomeScreen(p) {
   if (estates.length === 0) {
     return (
       <ScrollView contentContainerStyle={styles.page}>
-        <Hero eyebrow="ETU field visit" title="Welcome" sub="Start by uploading your estate workbook" stats={[{ ic: 'business', v: '0', l: 'Estates' }, { ic: 'grid', v: '0', l: 'Fields' }, { ic: 'walk', v: '0', l: 'Visits' }]} />
+        <Hero eyebrow="ETU field visit" title="Welcome" title2="to the field" sub="Start by uploading your estate workbook" stats={[{ ic: 'business', v: '0', l: 'Estates' }, { ic: 'grid', v: '0', l: 'Fields' }, { ic: 'walk', v: '0', l: 'Visits' }]} />
         <CTA label="UPLOAD ESTATE DATA" icon="cloud-upload" onPress={() => p.onGo('upload')} />
         <CTA label="LOAD EXAMPLE DATA" icon="download-outline" secondary onPress={p.onExample} />
       </ScrollView>
