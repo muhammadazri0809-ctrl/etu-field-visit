@@ -1,4 +1,4 @@
-import { buildImport, dropDeletedMessageObs, findEstate, relink, extractFiles, findFields, groupsToVisits, guessCategory, parseChat, splitLabels } from '../whatsapp';
+import { buildImport, dropDeletedMessageObs, findEstate, importKey, relink, textHash, extractFiles, findFields, groupsToVisits, guessCategory, parseChat, splitLabels } from '../whatsapp';
 
 const estates = [
   { id: 'bb', name: 'Bukit Badak' },
@@ -224,4 +224,19 @@ test('estate data matching: short distinctive names, hyphenated codes, relink af
   expect(g.fields[0]).toMatchObject({ code: '2016A', fieldId: 'f1' });
   const moved = relink({ ...g, estateId: 'cr' }, fields);
   expect(moved.fields[0].fieldId).toBeNull(); // 2016A is not a CEP Rengam field
+});
+
+test('import keys: same chat, estate and day give the same key, so a second import is skipped', () => {
+  const { groups } = buildImport(parseChat(TRIP), estates, fields, null);
+  const id = textHash(TRIP);
+  expect(textHash(TRIP)).toBe(id);
+  expect(textHash(TRIP + ' ')).not.toBe(id);
+  let n = 0;
+  const out = groupsToVisits(groups, { estates, fallbackEstateId: null, newId: () => 'id' + ++n, photoUri: () => null, chatId: id });
+  // after the first import the new estates exist; keys must not change
+  const est2 = estates.concat(out.newEstates);
+  const again = buildImport(parseChat(TRIP), est2, fields, null).groups;
+  const keys1 = out.visits.map((v) => v.importKey).sort();
+  const keys2 = [...new Set(again.map((g) => importKey(id, g, est2, null)))].sort();
+  expect(keys2).toEqual(keys1);
 });

@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TONE_FG } from './ui';
 import { norm } from '../logic/importRows';
 import { C, T, styles } from '../theme';
+import { BottomSheet } from './BottomSheet';
 
 // =====================================================
 // DROPDOWN: tap to open a list (with search)
@@ -22,9 +23,8 @@ export function Dropdown({ label, value, options, onChange, placeholder }) {
         </T>
         <Ionicons name="chevron-down" size={18} color={C.accent} />
       </Pressable>
-      <Modal visible={open} transparent animationType="fade" onRequestClose={() => setOpen(false)}>
-        <Pressable style={styles.modalBg} onPress={() => setOpen(false)}>
-          <Pressable style={styles.ddCard} onPress={() => {}}>
+      <BottomSheet visible={open} onClose={() => setOpen(false)}>
+          <View style={{ gap: 10 }}>
             <Text style={styles.calTitle}>{label || 'Select'}</Text>
             {options.length > 6 && (
               <TextInput
@@ -58,9 +58,8 @@ export function Dropdown({ label, value, options, onChange, placeholder }) {
               })}
               {list.length === 0 && <T style={styles.hint}>Nothing found.</T>}
             </ScrollView>
-          </Pressable>
-        </Pressable>
-      </Modal>
+          </View>
+      </BottomSheet>
     </View>
   );
 }

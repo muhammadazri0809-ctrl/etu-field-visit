@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.3.0 (versionCode 6): 20 UI details
+- Skeleton loading page instead of a spinner; skeleton while a chat is read
+- Every delete (estate, field, visit, assessment, observation, follow-up) shows UNDO
+- Search & jump menu (top bar): estates, field codes, visits and actions; Go opens the first match
+- Shortcut hints in the menu (Go key, swipe to delete, drag sheet down)
+- Photos fade in over a soft placeholder and are decoded at display size (expo-image)
+- Pages slide in from the side they come from; tabs fade up
+- Bottom sheets (cost editor, pickers, search) drag down to close; safe-area padding
+- Animations can be caught mid-way (sheets, swipe rows)
+- Android predictive back gesture enabled
+- Bigger touch areas (hit slop) on small buttons, chips and links
+- Tabular numbers for all figures; balanced line breaks in headings; continuous corners (iOS)
+- WhatsApp import keys: re-importing the same chat skips visits already imported
+
 ## 1.1.0 (versionCode 2)
 
 New look: frosted glass on a nature background

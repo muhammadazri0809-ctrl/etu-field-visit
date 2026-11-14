@@ -1,7 +1,10 @@
 // jest.mock calls are hoisted above the imports by babel-jest
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { WaImportScreen } from '../screens/WaImportScreen';
+
+const METRICS = { frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 0, left: 0, right: 0, bottom: 0 } };
 jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('../whatsappFiles', () => ({
   pickChatFiles: async () => ({
@@ -22,7 +25,11 @@ test('import screen: pick, preview, import', async () => {
   const fields = [{ id: 'f1', estateId: 'bb', code: '2016A' }];
   let out = null;
   let r;
-  await act(async () => { r = TestRenderer.create(<WaImportScreen estates={estates} fields={fields} onImport={(o) => (out = o)} />); });
+  await act(async () => { r = TestRenderer.create(
+      <SafeAreaProvider initialMetrics={METRICS}>
+        <WaImportScreen estates={estates} fields={fields} onImport={(o) => (out = o)} />
+      </SafeAreaProvider>
+    ); });
   const text = () => r.root.findAll((n) => typeof n.children?.[0] === 'string').map((n) => n.children.join('')).join(' | ');
   const press = async (label) => {
     const btn = r.root.findAll((n) => n.props.onPress && typeof n.props.label === 'string' && n.props.label.includes(label))[0];

@@ -3,34 +3,45 @@
     "name": "ETU Field Visit",
     "slug": "etu-field-visit",
     "owner": "azrizainals-team",
-    "version": "1.2.2",
+    "version": "1.3.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "backgroundColor": "#F4F2EA",
     "android": {
       "package": "com.azrizainal.etufieldvisit",
-      "versionCode": 5,
+      "versionCode": 6,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#2C5534"
       },
-      "permissions": ["android.permission.CAMERA"]
+      "permissions": [
+        "android.permission.CAMERA"
+      ],
+      "predictiveBackGestureEnabled": true
     },
     "plugins": [
       "expo-font",
-      ["expo-image-picker", {
-        "photosPermission": "Allow ETU Field Visit to attach photos to field findings.",
-        "cameraPermission": "Allow ETU Field Visit to take photos of field findings."
-      }],
-      ["expo-splash-screen", {
-        "image": "./assets/splash-icon.png",
-        "imageWidth": 160,
-        "resizeMode": "contain",
-        "backgroundColor": "#F4F2EA"
-      }]
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow ETU Field Visit to attach photos to field findings.",
+          "cameraPermission": "Allow ETU Field Visit to take photos of field findings."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160,
+          "resizeMode": "contain",
+          "backgroundColor": "#F4F2EA"
+        }
+      ]
     ],
     "extra": {
-      "eas": { "projectId": "4c9b3d0b-18dd-4ca9-b372-c29be1b9d513" }
+      "eas": {
+        "projectId": "4c9b3d0b-18dd-4ca9-b372-c29be1b9d513"
+      }
     }
   }
 }

@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import * as ImagePicker from 'expo-image-picker';
-import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Modal, Pressable, ScrollView, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { C, T, styles } from '../theme';
+import { Thumb } from './Thumb';
 import { forgetPhoto, keepPhoto } from '../storage';
 
 // =====================================================
@@ -42,7 +43,7 @@ export function PhotoStrip({ photos, onChange, readOnly }) {
           <View style={styles.photoRow}>
             {list.map((uri, i) => (
               <Pressable key={uri + i} onPress={() => setView(uri)}>
-                <Image source={{ uri: uri }} style={styles.thumb} />
+                <Thumb uri={uri} style={styles.thumb} />
                 {!readOnly && (
                   <Pressable
                     style={styles.thumbX}
@@ -74,7 +75,7 @@ export function PhotoStrip({ photos, onChange, readOnly }) {
       {msg ? <T style={styles.hint}>{msg}</T> : null}
       <Modal visible={!!view} transparent animationType="fade" onRequestClose={() => setView(null)}>
         <Pressable style={styles.photoView} onPress={() => setView(null)}>
-          {view && <Image source={{ uri: view }} style={styles.photoBig} resizeMode="contain" />}
+          {view && <Thumb uri={view} style={styles.photoBig} fit="contain" full />}
           <T style={styles.photoClose}>Tap to close</T>
         </Pressable>
       </Modal>

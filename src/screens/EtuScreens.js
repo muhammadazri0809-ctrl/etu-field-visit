@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Image, Pressable, ScrollView, Text, View } from 'react-native';
+import { Pressable, ScrollView, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { DateField } from '../components/DateField';
 import { PhotoStrip } from '../components/PhotoStrip';
@@ -9,6 +9,7 @@ import { addDays, showDate, today } from '../logic/dates';
 import { ACTION_BY, ECATS, ESTAT, ESTAT_ORDER, UOMS, WORD_LIB, etuCounts } from '../logic/etu';
 import { norm } from '../logic/importRows';
 import { C, T, styles } from '../theme';
+import { Thumb } from '../components/Thumb';
 import { SwipeRow } from '../components/SwipeRow';
 import { fieldPriorities } from './AlertsScreen';
 
@@ -104,7 +105,7 @@ export function EtuFieldScreen(p) {
         icon="eye-outline"
         title={'Observations · ' + obs.length}
         right={
-          <Pressable style={styles.smallBtn} onPress={p.onAddObs}>
+          <Pressable hitSlop={8} style={styles.smallBtn} onPress={p.onAddObs}>
             <Ionicons name="add" size={16} color="#fff" />
             <T style={styles.smallBtnText}>Add</T>
           </Pressable>
@@ -124,7 +125,7 @@ export function EtuFieldScreen(p) {
               {(o.photos || []).length > 0 && (
                 <View style={styles.photoRow}>
                   {o.photos.slice(0, 4).map((u, i) => (
-                    <Image key={u + i} source={{ uri: u }} style={styles.thumbS} />
+                    <Thumb key={u + i} uri={u} style={styles.thumbS} />
                   ))}
                 </View>
               )}
@@ -184,7 +185,7 @@ export function EtuObsScreen(p) {
           {ECATS.map((c) => {
             const on = obs.category === c.k;
             return (
-              <Pressable key={c.k} style={[styles.catBtn, on && { borderColor: c.c, backgroundColor: c.c + '18' }]} onPress={() => set('category', c.k)}>
+              <Pressable hitSlop={8} key={c.k} style={[styles.catBtn, on && { borderColor: c.c, backgroundColor: c.c + '18' }]} onPress={() => set('category', c.k)}>
                 <View style={[styles.catIc, { width: 30, height: 30, backgroundColor: on ? c.c : c.c + '22' }]}>
                   <Ionicons name={c.ic} size={17} color={on ? '#fff' : c.c} />
                 </View>
@@ -208,7 +209,7 @@ export function EtuObsScreen(p) {
         )}
         <Field label="Affected ha (optional)" full keyboardType="numeric" value={obs.affectedHa} onChangeText={(t) => set('affectedHa', t)} />
         <Field label="Issue highlighted" full multiline value={obs.issue} placeholder="What was observed and its effect" onChangeText={(t) => set('issue', t)} />
-        <Pressable style={styles.ghostBtn} onPress={() => setShowLib(!showLib)}>
+        <Pressable hitSlop={8} style={styles.ghostBtn} onPress={() => setShowLib(!showLib)}>
           <Ionicons name="library-outline" size={16} color={C.accent} />
           <T style={styles.link}>{showLib ? 'Hide standard wording' : 'Use standard wording'}</T>
         </Pressable>
@@ -302,7 +303,7 @@ function SuggestedVisits(p) {
             </T>
             <T style={styles.hint}>{it.last ? 'Last ETU visit ' + showDate(it.last) : 'Never visited'}</T>
           </View>
-          <Pressable style={styles.smallBtn} onPress={() => p.onNewForField(it.e.id, it.f.id)} accessibilityLabel={'Visit field ' + it.f.code}>
+          <Pressable hitSlop={8} style={styles.smallBtn} onPress={() => p.onNewForField(it.e.id, it.f.id)} accessibilityLabel={'Visit field ' + it.f.code}>
             <Ionicons name="walk" size={16} color="#fff" />
             <T style={styles.smallBtnText}>Visit</T>
           </Pressable>

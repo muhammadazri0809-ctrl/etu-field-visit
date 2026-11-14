@@ -1,9 +1,11 @@
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold, useFonts } from '@expo-google-fonts/barlow-condensed';
 import { PublicSans_400Regular, PublicSans_600SemiBold, PublicSans_700Bold } from '@expo-google-fonts/public-sans';
-import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, BackHandler, StatusBar, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BackHandler, StatusBar, View } from 'react-native';
 import { Backdrop } from './components/Backdrop';
+import { SkeletonPage } from './components/Skeleton';
+import { ScreenTransition } from './components/ScreenTransition';
 import { BottomNav } from './components/BottomNav';
 import { TopBar } from './components/ui';
 import { newId, showDate, today } from './logic/dates';
@@ -25,7 +27,8 @@ import { UploadScreen } from './screens/UploadScreen';
 import { VisitScreen } from './screens/VisitScreen';
 import { WaImportScreen } from './screens/WaImportScreen';
 import { UndoBar } from './components/SwipeRow';
-import { C, T, styles } from './theme';
+import { CommandMenu } from './components/CommandMenu';
+import { T, styles } from './theme';
 import { KEYS, useSavedState } from './useSavedState';
 import { dropDeletedMessageObs } from './logic/whatsapp';
 import { clearPhotos } from './storage';
@@ -65,6 +68,16 @@ function App() {
   // Always update from the latest stack (prev), so two quick taps never lose a step.
   const [stack, setStack] = useState([{ name: 'home' }]);
   const screen = stack[stack.length - 1];
+  // which way the page changed, for the slide animation
+  const prevDepth = useRef(stack.length);
+  const prevRoot = useRef(stack[0].name);
+  const dir =
+    stack[0].name !== prevRoot.current ? 'tab' : stack.length > prevDepth.current ? 'push' : stack.length < prevDepth.current ? 'back' : 'none';
+  useEffect(() => {
+    prevDepth.current = stack.length;
+    prevRoot.current = stack[0].name;
+  }, [stack]);
+  const screenKey = String(stack.length);
   const go = (s) => setStack((prev) => [...prev, s]);
   const goBack = (n = 1) =>
     setStack((prev) => (prev.length > n ? prev.slice(0, -n) : prev.slice(0, 1)));
@@ -96,6 +109,7 @@ function App() {
 
   // Undo bar after deleting a visit, and short notices (e.g. after an import)
   const [undo, setUndo] = useState(null);
+  const [cmd, setCmd] = useState(false); // command / search menu
   const [notice, setNotice] = useState('');
   useEffect(() => {
     if (!undo && !notice) return undefined;
@@ -110,9 +124,14 @@ function App() {
   useMemo(() => applySettings(settings), [settings]);
 
   if ((!fontsLoaded && !fontError) || !dataReady) {
+    // skeleton of the Home page instead of a spinner, so the app feels ready at once
     return (
-      <View style={styles.loading}>
-        <ActivityIndicator color={C.accent} size="large" />
+      <View style={styles.app}>
+        <Backdrop />
+        <View style={[styles.top, { paddingTop: Math.max(insets.top + 6, 14) }]}>
+          <View style={styles.logo} />
+        </View>
+        <SkeletonPage />
       </View>
     );
   }
@@ -130,7 +149,10 @@ function App() {
   const saveVisit = save(setVisits);
   const saveAction = save(setActions);
   const addAction = (a) => setActions((prev) => [a, ...prev]);
-  const deleteAction = (id) => setActions((prev) => prev.filter((x) => x.id !== id));
+  const deleteAction = (id) => {
+    remember('Follow-up deleted');
+    setActions((prev) => prev.filter((x) => x.id !== id));
+  };
   const addField = (f) => setFields((prev) => [...prev, f]);
 
   // ----- ETU field visits -----
@@ -138,20 +160,27 @@ function App() {
     setEtu((prev) => prev.map((x) => (x.id === v.id ? v : x)));
     setActions((prev) => syncEtuActions(v, prev));
   };
-  // Delete a visit (and its follow-ups) but keep a copy for Undo
+  // Every delete keeps a copy of the lists it changes, so the Undo bar can put them back.
+  // remember(text) must be called BEFORE the change; it captures the current lists.
+  const remember = (text) =>
+    setUndo({ text, snap: { estates, fields, visits, actions, etu } });
+  const undoDelete = () => {
+    if (!undo) return;
+    const s = undo.snap;
+    setEstates(s.estates);
+    setFields(s.fields);
+    setVisits(s.visits);
+    setActions(s.actions);
+    setEtu(s.etu);
+    setUndo(null);
+  };
   const deleteEtu = (id) => {
     const v = etu.find((x) => x.id === id);
     if (!v) return;
+    remember('Visit deleted');
     const key = 'etu-' + v.id + '-';
-    setUndo({ visit: v, actions: actions.filter((a) => a.id.startsWith(key)) });
     setEtu((prev) => prev.filter((x) => x.id !== id));
     setActions((prev) => prev.filter((a) => !a.id.startsWith(key)));
-  };
-  const undoDelete = () => {
-    if (!undo) return;
-    setEtu((prev) => [undo.visit, ...prev]);
-    setActions((prev) => [...undo.actions, ...prev]);
-    setUndo(null);
   };
 
   const newEtu = (estateId, fieldId) => {
@@ -200,6 +229,7 @@ function App() {
         onNewEtu={() => newEtu(e.id)}
         onOpenEtu={() => go({ name: 'etu', estateId: e.id })}
         onDelete={() => {
+          remember('Estate deleted');
           setEtu((prev) => prev.filter((x) => x.estateId !== e.id));
           setEstates((prev) => prev.filter((x) => x.id !== e.id));
           setFields((prev) => prev.filter((f) => f.estateId !== e.id));
@@ -224,6 +254,7 @@ function App() {
         onChange={saveField}
         onNewVisit={() => newEtu(e.id, f.id)}
         onDelete={() => {
+          remember('Field deleted');
           setFields((prev) => prev.filter((x) => x.id !== f.id));
           setActions((prev) => prev.filter((a) => a.fieldId !== f.id));
           goBack(2);
@@ -245,6 +276,7 @@ function App() {
         onAddAction={addAction}
         onAddField={addField}
         onDelete={() => {
+          remember('Assessment deleted');
           setVisits((prev) => prev.filter((x) => x.id !== v.id));
           setActions((prev) => prev.filter((a) => a.visitId !== v.id));
           goBack();
@@ -271,6 +303,7 @@ function App() {
         estates={estates}
         fields={fields}
         onUpload={() => go({ name: 'upload' })}
+        etu={etu}
         onImport={(out) => {
           if (out.newEstates.length) setEstates((prev) => [...prev, ...out.newEstates]);
           setEtu((prev) => [...out.visits, ...prev]);
@@ -296,6 +329,7 @@ function App() {
         onClose={() => goBack()}
         onOpenField={(fid) => go({ name: 'etufield', vid: v.id, fid: fid })}
         onDelete={() => {
+          remember('Visit deleted');
           setEtu((prev) => prev.filter((x) => x.id !== v.id));
           setActions((prev) => prev.filter((a) => !a.id.startsWith('etu-' + v.id + '-')));
           goBack();
@@ -321,6 +355,7 @@ function App() {
             go({ name: 'etuobs', vid: v.id, fid: vf.id, oid: o.id });
           }}
           onDelete={() => {
+            remember('Field removed from visit');
             saveEtu({ ...v, fields: v.fields.filter((x) => x.id !== vf.id) });
             goBack();
           }}
@@ -337,6 +372,7 @@ function App() {
           vf={vf}
           onChange={(no) => saveVf({ ...vf, obs: vf.obs.map((x) => (x.id === no.id ? no : x)) })}
           onDelete={() => {
+            remember('Observation deleted');
             saveVf({ ...vf, obs: vf.obs.filter((x) => x.id !== o.id) });
             goBack();
           }}
@@ -457,6 +493,7 @@ function App() {
         sub={sub}
         onBack={back}
         top={insets.top}
+        onSearch={inVisit ? null : () => setCmd(true)}
         action={
           screen.name === 'home' && estates.length
             ? { icon: 'cloud-upload-outline', label: 'Upload estate data', onPress: () => go({ name: 'upload' }) }
@@ -468,9 +505,29 @@ function App() {
           <T style={styles.storeWarnText}>{storeError}</T>
         </View>
       ) : null}
-      <View style={{ flex: 1 }}>{body}</View>
+      <View style={{ flex: 1 }}>
+        <ScreenTransition key={screenKey.split(':')[0] + ':' + screen.name + (screen.id || screen.vid || '') + (screen.tab || '') + (screen.oid || screen.fid || '')} dir={dir}>
+          {body}
+        </ScreenTransition>
+      </View>
+      <CommandMenu
+        visible={cmd}
+        onClose={() => setCmd(false)}
+        estates={estates}
+        fields={fields}
+        etu={etu}
+        onPick={(g) => {
+          if (g.estate) openEstate(g.estate);
+          else if (g.field) openField(g.field);
+          else if (g.visit) go({ name: 'etuvisit', id: g.visit });
+          else if (g.action === 'new') newEtu(estates.length === 1 ? estates[0].id : null);
+          else if (g.action === 'wa') go({ name: 'waimport' });
+          else if (g.action === 'alerts') goTab('alerts');
+          else if (g.action) go({ name: g.action });
+        }}
+      />
       {undo ? (
-        <UndoBar text="Visit deleted" onUndo={undoDelete} />
+        <UndoBar text={undo.text} onUndo={undoDelete} />
       ) : notice ? (
         <View style={styles.undoBar}>
           <T style={styles.undoText}>{notice}</T>
