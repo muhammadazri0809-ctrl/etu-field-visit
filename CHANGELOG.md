@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.0 (versionCode 7): Earthy Minimal look
+- Palette: forest #2E3A2F, sage #6B7F5B, sand #D9C9B2, terracotta #C96F4F on warm white #F8F6EE
+- Solid white cards with very soft warm shadows (replaces the see-through glass)
+- Pill buttons, pill filter chips, round icon buttons; forest-green active tab
+- Inter ExtraBold headlines with tight spacing; two-tone hero titles (black + grey)
+- Status colours: terracotta = Action, ochre = Monitor, sage = Good, slate = R&D (dark text, 6.5:1+)
+- App icon and splash recoloured
+
 ## 1.3.0 (versionCode 6): 20 UI details
 - Skeleton loading page instead of a spinner; skeleton while a chat is read
 - Every delete (estate, field, visit, assessment, observation, follow-up) shows UNDO

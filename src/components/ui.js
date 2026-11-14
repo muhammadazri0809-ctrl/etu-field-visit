@@ -52,7 +52,8 @@ export function TopBar({ sub, onBack, action, onSearch, top }) {
 
 // ===== REUSABLE: glass hero card =====
 // stats: [{ v, l, ic, tone }] - tiles wrap to a new line, labels are never cut off
-export function Hero({ eyebrow, title, sub, stats, mini }) {
+// title2 = optional second headline line in grey ("Earthy" / "Minimal" style)
+export function Hero({ eyebrow, title, title2, sub, stats, mini }) {
   return (
     <View style={styles.hero}>
       <View style={styles.heroTx}>
@@ -60,6 +61,11 @@ export function Hero({ eyebrow, title, sub, stats, mini }) {
         <Text style={[styles.heroTitle, mini && styles.heroTitleMini]} textBreakStrategy="balanced">
           {title}
         </Text>
+        {title2 ? (
+          <Text style={[styles.heroTitle, styles.heroTitle2, mini && styles.heroTitleMini]} textBreakStrategy="balanced">
+            {title2}
+          </Text>
+        ) : null}
         {sub ? <T style={styles.hint}>{sub}</T> : null}
       </View>
       {stats && stats.length ? (
@@ -156,14 +162,14 @@ export function Field({ label, full, multiline, ...props }) {
 }
 
 // ===== REUSABLE: big action button =====
-// secondary = frosted glass button with green text (for the less important action)
+// secondary = white pill with dark text (for the less important action)
 export function CTA({ label, icon, onPress, color, secondary }) {
   return (
     <Pressable
       style={[styles.cta, secondary && styles.ctaSecondary, color && { backgroundColor: color }]}
       onPress={onPress}>
-      <Ionicons name={icon} size={20} color={secondary ? C.accent : '#fff'} />
-      <Text style={[styles.ctaText, secondary && { color: C.accent }]}>{label}</Text>
+      <Ionicons name={icon} size={20} color={secondary ? C.brand : '#fff'} />
+      <Text style={[styles.ctaText, secondary && { color: C.brand }]}>{label}</Text>
     </Pressable>
   );
 }

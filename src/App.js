@@ -1,5 +1,5 @@
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BarlowCondensed_600SemiBold, BarlowCondensed_700Bold, useFonts } from '@expo-google-fonts/barlow-condensed';
+import { Inter_700Bold, Inter_800ExtraBold, useFonts } from '@expo-google-fonts/inter';
 import { PublicSans_400Regular, PublicSans_600SemiBold, PublicSans_700Bold } from '@expo-google-fonts/public-sans';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BackHandler, StatusBar, View } from 'react-native';
@@ -48,8 +48,8 @@ export default function Root() {
 function App() {
   const insets = useSafeAreaInsets();
   const [fontsLoaded, fontError] = useFonts({
-    BarlowCondensed_600SemiBold,
-    BarlowCondensed_700Bold,
+    Inter_700Bold,
+    Inter_800ExtraBold,
     PublicSans_400Regular,
     PublicSans_600SemiBold,
     PublicSans_700Bold,
